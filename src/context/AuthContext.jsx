@@ -7,45 +7,45 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check auth only if token exists
   useEffect(() => {
     checkAuth();
   }, []);
 
-    const checkAuth = async () => {
-        try {
-            const res = await api.get('/auth/users/me/');
-            setUser(res.data);
-        } catch {
-            setUser(null);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const checkAuth = async () => {
+    try {
+      // With 'withCredentials: true', this request automatically sends the 'access' cookie
+      const res = await api.get('/auth/users/me/');
+      setUser(res.data);
+    } catch (err) {
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const login = async (email, password) => {
+    // 1. Send credentials
     const response = await api.post('/auth/login/', {
       email,
       password,
     });
+    
+    // 2. Backend sets 'access' and 'refresh' cookies here automatically.
+    // We don't need to (and can't) save them manually in localStorage.
 
-    // Store tokens
-    localStorage.setItem('access', response.data.access);
-    localStorage.setItem('refresh', response.data.refresh);
-
+    // 3. Update user state immediately
     await checkAuth();
     return response.data;
   };
 
   const logout = async () => {
     try {
-      await api.post('/auth/logout/');
+      await api.post('/auth/logout/'); // Backend deletes the cookies
     } catch (error) {
-      // ignore backend logout errors
+      console.error("Logout failed", error);
     } finally {
-      localStorage.removeItem('access');
-      localStorage.removeItem('refresh');
       setUser(null);
+      // Optional: Redirect to login handled by protected routes
     }
   };
 

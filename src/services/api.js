@@ -1,11 +1,12 @@
 import axios from 'axios';
-import { API_BASE_URL } from '../utils/constants';
+
+const API_URL = "https://bank-server-4xw9.onrender.com/api/v1";
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: true, // REQUIRED
+  baseURL: API_URL,
+  withCredentials: true, // <--- CRITICAL: Enables sending/receiving cookies
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 

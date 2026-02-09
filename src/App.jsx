@@ -6,6 +6,8 @@ import Register from './pages/Register';
 import Transactions from './pages/Transactions';
 import NextOfKin from './pages/NextOfKin'; 
 import ProfilePhotos from './pages/ProfilePhotos';
+import VirtualCards from './pages/VirtualCards';
+import MoneyOperations from './pages/MoneyOperations'; // New Import
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -40,6 +42,22 @@ function App() {
             }
           />
           <Route
+            path="/virtual-cards"
+            element={
+              <ProtectedRoute>
+                <VirtualCards />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/operations" // New Route for Deposit/Withdraw/Transfer
+            element={
+              <ProtectedRoute>
+                <MoneyOperations />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/next-of-kin"
             element={
               <ProtectedRoute>
@@ -48,7 +66,7 @@ function App() {
             }
           />
           <Route
-            path="/upload-photos"  // Add this route
+            path="/upload-photos"
             element={
               <ProtectedRoute>
                 <ProfilePhotos />
