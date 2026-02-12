@@ -12,8 +12,14 @@ const Activate = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uid, token })
     })
-    .then(res => res.ok ? setMessage('✅ Account activated! Redirecting...') : setMessage('❌ Activation failed'))
-    .then(() => res.ok && setTimeout(() => navigate('/login'), 2000))
+    .then(res => {
+      if (res.status === 204 || res.ok) {  // Djoser returns 204 on success
+        setMessage('✅ Account activated! Redirecting...');
+        setTimeout(() => navigate('/login'), 2000);
+      } else {
+        setMessage('❌ Activation failed');
+      }
+    })
     .catch(() => setMessage('❌ Error activating account'));
   }, [uid, token, navigate]);
 
