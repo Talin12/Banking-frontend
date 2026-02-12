@@ -16,6 +16,8 @@ import {
   Stack,
   Divider,
   Box,
+  ActionIcon,
+  Tooltip,
 } from '@mantine/core';
 import {
   IconLogout,
@@ -25,6 +27,7 @@ import {
   IconCheck,
   IconX,
   IconUser,
+  IconPencil, // <-- Import added
 } from '@tabler/icons-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -188,14 +191,26 @@ const Dashboard = () => {
       {/* PROFILE */}
       <Card mt="xl" radius="lg" p="xl">
         <Group justify="space-between" mb="md">
-          <Title order={4}>Profile Overview</Title>
-          <Badge
-            color={hasPhotos ? 'green' : 'orange'}
-            variant="light"
-            radius="sm"
+          <Group gap="sm">
+            <Title order={4}>Profile Overview</Title>
+             <Badge
+              color={hasPhotos ? 'green' : 'orange'}
+              variant="light"
+              radius="sm"
+            >
+              {hasPhotos ? 'Verified' : 'Incomplete'}
+            </Badge>
+          </Group>
+          
+          {/* EDIT BUTTON ADDED HERE */}
+          <Button 
+            variant="light" 
+            size="xs" 
+            leftSection={<IconPencil size={14} />}
+            onClick={() => navigate('/edit-profile')}
           >
-            {hasPhotos ? 'Verified' : 'Incomplete'}
-          </Badge>
+            Edit Details
+          </Button>
         </Group>
 
         <Divider mb="lg" />
@@ -206,7 +221,7 @@ const Dashboard = () => {
           <Info label="Username" value={profile?.username} />
           <Info label="Email" value={profile?.email} />
           <Info label="Phone" value={profile?.phone_number} />
-          <Info label="City / Country" value={`${profile?.city}, ${profile?.country}`} />
+          <Info label="City / Country" value={`${profile?.city || '-'}, ${profile?.country || '-'}`} />
           <Info label="Account Type" value={profile?.account_type} />
           <Info label="Currency" value={profile?.account_currency} />
           <Info

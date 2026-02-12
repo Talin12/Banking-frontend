@@ -9,6 +9,7 @@ import ProfilePhotos from './pages/ProfilePhotos';
 import VirtualCards from './pages/VirtualCards';
 import MoneyOperations from './pages/MoneyOperations'; 
 import Activate from './pages/Activate';
+import EditProfile from './pages/EditProfile'; // <-- Import added
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -35,6 +36,14 @@ function App() {
             }
           />
           <Route
+            path="/edit-profile"  // <-- Route added
+            element={
+              <ProtectedRoute>
+                <EditProfile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/transactions"
             element={
               <ProtectedRoute>
@@ -51,7 +60,7 @@ function App() {
             }
           />
           <Route
-            path="/operations" // New Route for Deposit/Withdraw/Transfer
+            path="/operations"
             element={
               <ProtectedRoute>
                 <MoneyOperations />
