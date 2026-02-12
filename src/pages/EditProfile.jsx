@@ -14,7 +14,6 @@ import {
   SimpleGrid,
   Box,
   Tabs,
-  NumberInput,
   Alert,
 } from '@mantine/core';
 import {
@@ -24,7 +23,6 @@ import {
   IconBriefcase,
   IconId,
   IconMapPin,
-  IconCheck,
 } from '@tabler/icons-react';
 import api from '../services/api';
 
@@ -89,7 +87,7 @@ const EditProfile = () => {
       const response = await api.get('/profiles/my-profile/');
       const data = response.data.profile?.data || response.data.profile || response.data || {};
       
-      // Map backend fields to form, converting nulls to empty strings for inputs
+      // Map backend fields to form, converting nulls to empty strings
       const sanitizedData = {};
       Object.keys(form.values).forEach(key => {
         sanitizedData[key] = data[key] === null || data[key] === undefined ? '' : data[key];
@@ -108,13 +106,12 @@ const EditProfile = () => {
     setLoading(true);
     setError(null);
     try {
-      // CLEAN PAYLOAD: Convert empty strings back to null for dates/numbers to avoid backend validation errors
+      // Clean payload: Convert empty strings back to null for dates to avoid validation errors
       const payload = { ...values };
       const dateFields = ['date_of_birth', 'id_issue_date', 'id_expiry_date', 'date_of_employment'];
       
       Object.keys(payload).forEach(key => {
         if (payload[key] === '') {
-          // If it's a date field or looks like a number but is empty, send null
           if (dateFields.includes(key)) {
             payload[key] = null;
           } 
@@ -122,23 +119,31 @@ const EditProfile = () => {
       });
 
       await api.patch('/profiles/my-profile/', payload);
-      
-      // Force a small delay or navigation to ensure Dashboard re-fetches
       navigate('/dashboard');
     } catch (error) {
       console.error('Failed to update profile', error);
       const msg = error.response?.data?.message || error.response?.data?.detail || 'Failed to update profile.';
       setError(msg);
 
-      // Handle field-specific errors
       if (error.response?.data) {
          const backendErrors = error.response.data;
          const formErrors = {};
-         Object.keys(backendErrors).forEach(key => {
-             if(key in values) {
-                 formErrors[key] = Array.isArray(backendErrors[key]) ? backendErrors[key][0] : backendErrors[key];
-             }
-         });
+         
+         // Helper to handle nested error structures
+         const extractError = (err) => Array.isArray(err) ? err[0] : err;
+
+         if (backendErrors.errors) {
+            // Handle { errors: { field: [] } } format
+            Object.keys(backendErrors.errors).forEach(key => {
+                if(key in values) formErrors[key] = extractError(backendErrors.errors[key]);
+            });
+         } else {
+            // Handle { field: [] } format
+            Object.keys(backendErrors).forEach(key => {
+                if(key in values) formErrors[key] = extractError(backendErrors[key]);
+            });
+         }
+         
          form.setErrors(formErrors);
       }
     } finally {
@@ -198,12 +203,19 @@ const EditProfile = () => {
                 <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
                   <Select
                     label="Title"
-                    data={['Mr', 'Mrs', 'Ms', 'Dr', 'Prof']}
+                    data={[
+                      { value: 'mr', label: 'Mr' },
+                      { value: 'mrs', label: 'Mrs' },
+                      { value: 'miss', label: 'Miss' }
+                    ]}
                     {...form.getInputProps('title')}
                   />
                   <Select
                     label="Gender"
-                    data={['Male', 'Female', 'Other']}
+                    data={[
+                      { value: 'male', label: 'Male' },
+                      { value: 'female', label: 'Female' }
+                    ]}
                     {...form.getInputProps('gender')}
                   />
                   <TextInput
@@ -227,7 +239,13 @@ const EditProfile = () => {
                   />
                   <Select
                     label="Marital Status"
-                    data={['Single', 'Married', 'Divorced', 'Widowed']}
+                    data={[
+                      { value: 'single', label: 'Single' },
+                      { value: 'married', label: 'Married' },
+                      { value: 'divorced', label: 'Divorced' },
+                      { value: 'widowed', label: 'Widowed' },
+                      { value: 'separated', label: 'Separated' }
+                    ]}
                     {...form.getInputProps('marital_status')}
                   />
                 </SimpleGrid>
@@ -273,7 +291,11 @@ const EditProfile = () => {
                   />
                    <Select
                     label="Means of Identification"
-                    data={['Passport', 'National ID', 'Driver License']}
+                    data={[
+                      { value: 'passport', label: 'Passport' },
+                      { value: 'national_id', label: 'National ID' },
+                      { value: 'drivers_license', label: 'Drivers License' }
+                    ]}
                     {...form.getInputProps('means_of_identification')}
                   />
                   <TextInput
@@ -299,7 +321,13 @@ const EditProfile = () => {
                 <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
                    <Select
                     label="Employment Status"
-                    data={['Employed', 'Self-Employed', 'Unemployed', 'Student', 'Retired']}
+                    data={[
+                      { value: 'employed', label: 'Employed' },
+                      { value: 'self_employed', label: 'Self Employed' },
+                      { value: 'unemployed', label: 'Unemployed' },
+                      { value: 'student', label: 'Student' },
+                      { value: 'retired', label: 'Retired' }
+                    ]}
                     {...form.getInputProps('employment_status')}
                   />
                   <TextInput
