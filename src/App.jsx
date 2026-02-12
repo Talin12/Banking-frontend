@@ -7,7 +7,8 @@ import Transactions from './pages/Transactions';
 import NextOfKin from './pages/NextOfKin'; 
 import ProfilePhotos from './pages/ProfilePhotos';
 import VirtualCards from './pages/VirtualCards';
-import MoneyOperations from './pages/MoneyOperations'; // New Import
+import MoneyOperations from './pages/MoneyOperations'; 
+import Activate from './pages/Activate';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -73,6 +74,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/activate/:uid/:token" element={<Activate />} />
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>
       </BrowserRouter>
