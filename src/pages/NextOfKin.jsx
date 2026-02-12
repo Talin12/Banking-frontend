@@ -1,143 +1,52 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // Added Import
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useForm } from '@mantine/form';
+import {
+  Container,
+  Title,
+  TextInput,
+  Button,
+  Group,
+  Select,
+  Paper,
+  Text,
+  LoadingOverlay,
+  SimpleGrid,
+  Box,
+  Card,
+  ActionIcon,
+  Drawer,
+  Stack,
+  Badge,
+  Alert,
+} from '@mantine/core';
+import {
+  IconPlus,
+  IconTrash,
+  IconEdit,
+  IconArrowLeft,
+  IconUserHeart,
+  IconPhone,
+  IconMapPin,
+  IconMail,
+  IconAlertCircle,
+} from '@tabler/icons-react';
+import { useDisclosure } from '@mantine/hooks';
 import api from '../services/api';
 
 const NextOfKin = () => {
-  const navigate = useNavigate(); // Hook for navigation
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
   const [nextOfKinList, setNextOfKinList] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   
-  // State matches backend model fields exactly
-  const [formData, setFormData] = useState({
-    title: '',
-    first_name: '',
-    last_name: '',
-    other_names: '',
-    gender: '',
-    date_of_birth: '',
-    relationship: '',
-    phone_number: '',
-    email_address: '',
-    address: '',
-    city: '',
-    country: '' 
-  });
+  // Controls the Form Drawer
+  const [opened, { open, close }] = useDisclosure(false);
 
-  useEffect(() => {
-    fetchNextOfKin();
-  }, []);
-
-  const fetchNextOfKin = async () => {
-    setLoading(true);
-    try {
-      const response = await api.get('/profiles/my-profile/next-of-kin/');
-      // Unwrap logic: { status_code: 200, next_of_kin: [...] }
-      let data = response.data;
-      if (data && data.next_of_kin) {
-        data = data.next_of_kin;
-      }
-      const list = data.results || (Array.isArray(data) ? data : []);
-      setNextOfKinList(list);
-      setError(null);
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setError('Failed to fetch next of kin list.');
-      setNextOfKinList([]); 
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editingId) {
-        await api.put(`/profiles/my-profile/next-of-kin/${editingId}/`, formData);
-      } else {
-        await api.post('/profiles/my-profile/next-of-kin/', formData);
-      }
-      
-      setShowForm(false);
-      setEditingId(null);
-      resetForm();
-      fetchNextOfKin();
-      setError(null);
-    } catch (err) {
-      console.error("Submission Error:", err);
-      
-      // ERROR HANDLING: Extract specific backend validation messages
-      let errorMessage = 'Failed to save next of kin.';
-      if (err.response && err.response.data) {
-        const data = err.response.data;
-        console.log("SERVER VALIDATION ERRORS:", data);
-
-        let validationErrors = null;
-        if (data.next_of_kin && typeof data.next_of_kin === 'object') {
-          validationErrors = data.next_of_kin;
-        } else if (data.errors) {
-          validationErrors = data.errors;
-        } else {
-           validationErrors = data;
-        }
-
-        if (validationErrors && typeof validationErrors === 'object') {
-          const messages = Object.entries(validationErrors)
-            .map(([field, msgs]) => {
-              if (field === 'status_code' || field === 'object_label') return null;
-              const msgText = Array.isArray(msgs) ? msgs.join(' ') : String(msgs);
-              const fieldName = field.replace(/_/g, ' ').toUpperCase();
-              return `${fieldName}: ${msgText}`;
-            })
-            .filter(Boolean)
-            .join(' | ');
-          
-          if (messages) errorMessage = messages;
-        }
-      }
-      setError(errorMessage);
-    }
-  };
-
-  const handleEdit = (kin) => {
-    setFormData({
-      title: kin.title || '',
-      first_name: kin.first_name,
-      last_name: kin.last_name,
-      other_names: kin.other_names || '',
-      gender: kin.gender || '',
-      date_of_birth: kin.date_of_birth || '',
-      relationship: kin.relationship,
-      phone_number: kin.phone_number,
-      email_address: kin.email_address || '',
-      address: kin.address || '',
-      city: kin.city || '',
-      country: kin.country || ''
-    });
-    setEditingId(kin.id);
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this next of kin?')) return;
-    try {
-      await api.delete(`/profiles/my-profile/next-of-kin/${id}/`);
-      fetchNextOfKin();
-      setError(null);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to delete next of kin');
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
+  const form = useForm({
+    initialValues: {
       title: '',
       first_name: '',
       last_name: '',
@@ -149,258 +58,286 @@ const NextOfKin = () => {
       email_address: '',
       address: '',
       city: '',
-      country: ''
-    });
+      country: '',
+    },
+    validate: {
+      first_name: (value) => (value.length < 2 ? 'First name is too short' : null),
+      last_name: (value) => (value.length < 2 ? 'Last name is too short' : null),
+      relationship: (value) => (value ? null : 'Relationship is required'),
+      phone_number: (value) => (value.length < 5 ? 'Invalid phone number' : null),
+      email_address: (value) => (/^\S+@\S+$/.test(value) ? null : 'Invalid email'),
+    },
+  });
+
+  useEffect(() => {
+    fetchNextOfKin();
+  }, []);
+
+  const fetchNextOfKin = async () => {
+    setListLoading(true);
+    try {
+      const response = await api.get('/profiles/my-profile/next-of-kin/');
+      let data = response.data;
+      if (data && data.next_of_kin) data = data.next_of_kin;
+      const list = data.results || (Array.isArray(data) ? data : []);
+      setNextOfKinList(list);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load contacts.');
+    } finally {
+      setListLoading(false);
+    }
   };
 
-  const handleCancel = () => {
-    setShowForm(false);
+  const handleSubmit = async (values) => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (editingId) {
+        await api.put(`/profiles/my-profile/next-of-kin/${editingId}/`, values);
+      } else {
+        await api.post('/profiles/my-profile/next-of-kin/', values);
+      }
+      await fetchNextOfKin();
+      handleCloseDrawer();
+    } catch (err) {
+      console.error(err);
+      // Extract backend errors if available
+      const backendErrors = err.response?.data;
+      if (backendErrors && typeof backendErrors === 'object') {
+        // Map backend field errors to form
+        const fieldErrors = {};
+        Object.keys(backendErrors).forEach((key) => {
+           // Handle specific field errors or general errors
+           if (key in values) {
+             fieldErrors[key] = Array.isArray(backendErrors[key]) ? backendErrors[key][0] : backendErrors[key];
+           }
+        });
+        form.setErrors(fieldErrors);
+        
+        // General error message if needed
+        if (backendErrors.detail) setError(backendErrors.detail);
+        else if (!Object.keys(fieldErrors).length) setError('Failed to save information.');
+      } else {
+        setError('An unexpected error occurred.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (kin) => {
+    setEditingId(kin.id);
+    form.setValues({
+      title: kin.title || '',
+      first_name: kin.first_name || '',
+      last_name: kin.last_name || '',
+      other_names: kin.other_names || '',
+      gender: kin.gender || '',
+      date_of_birth: kin.date_of_birth || '',
+      relationship: kin.relationship || '',
+      phone_number: kin.phone_number || '',
+      email_address: kin.email_address || '',
+      address: kin.address || '',
+      city: kin.city || '',
+      country: kin.country || '',
+    });
+    open();
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this contact?')) return;
+    try {
+      await api.delete(`/profiles/my-profile/next-of-kin/${id}/`);
+      fetchNextOfKin();
+    } catch (err) {
+      console.error(err);
+      setError('Failed to delete contact.');
+    }
+  };
+
+  const handleCloseDrawer = () => {
+    close();
     setEditingId(null);
-    resetForm();
+    form.reset();
     setError(null);
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      
-      {/* Back Button */}
-      <button
-        onClick={() => navigate('/dashboard')}
-        style={{
-          marginBottom: '20px',
-          background: 'transparent',
-          border: '1px solid #d1d5db',
-          padding: '8px 16px',
-          borderRadius: '6px',
-          cursor: 'pointer',
-          color: '#4b5563',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          fontWeight: '500',
-          transition: 'all 0.2s'
-        }}
-        onMouseOver={(e) => e.target.style.background = '#f3f4f6'}
-        onMouseOut={(e) => e.target.style.background = 'transparent'}
-      >
-        <span>←</span> Back to Dashboard
-      </button>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h1 style={{ margin: 0, color: '#1f2937' }}>Next of Kin / Emergency Contacts</h1>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            style={{
-              padding: '10px 20px', background: '#10b981', color: 'white',
-              border: 'none', borderRadius: '8px', cursor: 'pointer',
-              fontSize: '16px', fontWeight: '500', transition: 'background 0.2s'
-            }}
+    <Box bg="gray.0" mih="100vh" py="xl">
+      <Container size="lg">
+        {/* Header Section */}
+        <Group justify="space-between" mb="lg">
+          <Button 
+            variant="subtle" 
+            color="gray" 
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={() => navigate('/dashboard')}
           >
-            + Add Next of Kin
-          </button>
-        )}
-      </div>
+            Dashboard
+          </Button>
+          <Button 
+            leftSection={<IconPlus size={16} />} 
+            onClick={() => { setEditingId(null); form.reset(); open(); }}
+          >
+            Add Contact
+          </Button>
+        </Group>
 
-      {error && (
-        <div style={{ 
-          background: '#fee2e2', 
-          border: '1px solid #f87171',
-          color: '#991b1b', 
-          padding: '15px', 
-          borderRadius: '8px', 
-          marginBottom: '20px',
-          whiteSpace: 'pre-wrap',
-          fontFamily: 'monospace',
-          fontSize: '14px'
-        }}>
-          <strong>Error:</strong> {error}
-        </div>
-      )}
+        <Title order={2} mb="xs">Next of Kin</Title>
+        <Text c="dimmed" mb="xl">Manage your emergency contacts and beneficiaries.</Text>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} style={{
-          background: 'white', padding: '30px', borderRadius: '8px',
-          border: '1px solid #e5e7eb', marginBottom: '30px',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-        }}>
-          <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#374151' }}>
-            {editingId ? 'Edit' : 'Add'} Next of Kin
-          </h3>
+        {error && <Alert color="red" icon={<IconAlertCircle />} mb="lg">{error}</Alert>}
+
+        {/* List View */}
+        <Box pos="relative" minHeight={200}>
+          <LoadingOverlay visible={listLoading} overlayProps={{ radius: 'sm', blur: 2 }} />
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '20px' }}>
-            
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#4b5563' }}>Title *</label>
-              <select
-                name="title"
-                value={formData.title}
-                onChange={handleInputChange}
-                required
-                style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', background: 'white' }}
-              >
-                <option value="">Select Title</option>
-                <option value="mr">Mr.</option>
-                <option value="mrs">Mrs.</option>
-                <option value="miss">Miss</option>
-              </select>
-            </div>
+          {nextOfKinList.length === 0 && !listLoading ? (
+             <Paper p="xl" withBorder ta="center" bg="gray.0">
+               <IconUserHeart size={48} color="#adb5bd" style={{ marginBottom: 15 }} />
+               <Text c="dimmed">No contacts added yet.</Text>
+               <Button variant="light" mt="md" onClick={open}>Add your first contact</Button>
+             </Paper>
+          ) : (
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+              {nextOfKinList.map((kin) => (
+                <Card key={kin.id} shadow="sm" padding="lg" radius="md" withBorder>
+                  <Group justify="space-between" mb="xs">
+                    <Badge color="blue" variant="light">{kin.relationship}</Badge>
+                    <Group gap="xs">
+                      <ActionIcon variant="subtle" color="blue" onClick={() => handleEdit(kin)}>
+                        <IconEdit size={16} />
+                      </ActionIcon>
+                      <ActionIcon variant="subtle" color="red" onClick={() => handleDelete(kin.id)}>
+                        <IconTrash size={16} />
+                      </ActionIcon>
+                    </Group>
+                  </Group>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#4b5563' }}>Gender *</label>
-              <select
-                name="gender"
-                value={formData.gender}
-                onChange={handleInputChange}
-                required
-                style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', background: 'white' }}
-              >
-                <option value="">Select Gender</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-              </select>
-            </div>
+                  <Text fw={600} size="lg" mt="xs">
+                    {kin.title} {kin.first_name} {kin.last_name}
+                  </Text>
+                  <Text size="sm" c="dimmed" mb="md">
+                    {kin.other_names}
+                  </Text>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#4b5563' }}>First Name *</label>
-              <input
-                type="text" name="first_name" value={formData.first_name}
-                onChange={handleInputChange} required
-                style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <IconPhone size={14} color="gray" />
+                      <Text size="sm">{kin.phone_number}</Text>
+                    </Group>
+                    <Group gap="xs">
+                      <IconMail size={14} color="gray" />
+                      <Text size="sm" style={{ wordBreak: 'break-all' }}>{kin.email_address}</Text>
+                    </Group>
+                    <Group gap="xs" align="flex-start">
+                      <IconMapPin size={14} color="gray" style={{ marginTop: 4 }} />
+                      <Text size="sm">
+                        {kin.address}, {kin.city}, {kin.country}
+                      </Text>
+                    </Group>
+                  </Stack>
+                </Card>
+              ))}
+            </SimpleGrid>
+          )}
+        </Box>
+
+        {/* Add/Edit Drawer Form */}
+        <Drawer
+          opened={opened}
+          onClose={handleCloseDrawer}
+          title={<Text fw={600} size="lg">{editingId ? 'Edit Contact' : 'New Contact'}</Text>}
+          position="right"
+          size="md"
+          padding="xl"
+        >
+          <form onSubmit={form.onSubmit(handleSubmit)}>
+            <Stack gap="md">
+              <Group grow>
+                <Select
+                  label="Title"
+                  data={['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Prof']}
+                  {...form.getInputProps('title')}
+                />
+                <Select
+                  label="Gender"
+                  data={['Male', 'Female', 'Other']}
+                  {...form.getInputProps('gender')}
+                />
+              </Group>
+
+              <Group grow>
+                <TextInput
+                  withAsterisk
+                  label="First Name"
+                  {...form.getInputProps('first_name')}
+                />
+                <TextInput
+                  withAsterisk
+                  label="Last Name"
+                  {...form.getInputProps('last_name')}
+                />
+              </Group>
+
+              <TextInput
+                label="Other Names"
+                {...form.getInputProps('other_names')}
               />
-            </div>
-            
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#4b5563' }}>Last Name *</label>
-              <input
-                type="text" name="last_name" value={formData.last_name}
-                onChange={handleInputChange} required
-                style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+
+              <Group grow>
+                <TextInput
+                  withAsterisk
+                  label="Relationship"
+                  placeholder="e.g. Spouse"
+                  {...form.getInputProps('relationship')}
+                />
+                <TextInput
+                  type="date"
+                  label="Date of Birth"
+                  {...form.getInputProps('date_of_birth')}
+                />
+              </Group>
+
+              <TextInput
+                withAsterisk
+                label="Phone Number"
+                placeholder="+1 234 567 890"
+                {...form.getInputProps('phone_number')}
               />
-            </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#4b5563' }}>Date of Birth *</label>
-              <input
-                type="date" name="date_of_birth" value={formData.date_of_birth}
-                onChange={handleInputChange} required
-                style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+              <TextInput
+                withAsterisk
+                label="Email Address"
+                placeholder="email@example.com"
+                {...form.getInputProps('email_address')}
               />
-            </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#4b5563' }}>Relationship *</label>
-              <input
-                type="text" name="relationship" value={formData.relationship}
-                onChange={handleInputChange} required
-                placeholder="e.g., Spouse, Parent"
-                style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+              <TextInput
+                label="Address"
+                {...form.getInputProps('address')}
               />
-            </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#4b5563' }}>Phone Number *</label>
-              <input
-                type="tel" name="phone_number" value={formData.phone_number}
-                onChange={handleInputChange} required
-                placeholder="+1234567890"
-                style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px' }}
-              />
-              <small style={{ color: '#6b7280', fontSize: '12px' }}>Include country code (e.g. +254)</small>
-            </div>
+              <Group grow>
+                <TextInput
+                  label="City"
+                  {...form.getInputProps('city')}
+                />
+                <TextInput
+                  label="Country"
+                  {...form.getInputProps('country')}
+                />
+              </Group>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#4b5563' }}>Country *</label>
-              <input
-                type="text" name="country" value={formData.country}
-                onChange={handleInputChange} required
-                placeholder="e.g. United States, Kenya, India"
-                style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px' }}
-              />
-              <small style={{ color: '#6b7280', fontSize: '12px' }}>Enter full country name (not code)</small>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#4b5563' }}>Email Address *</label>
-              <input
-                type="email" name="email_address" value={formData.email_address}
-                onChange={handleInputChange} required
-                style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#4b5563' }}>City *</label>
-              <input
-                type="text" name="city" value={formData.city}
-                onChange={handleInputChange} required
-                style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px' }}
-              />
-            </div>
-
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#4b5563' }}>Address *</label>
-              <input
-                type="text" name="address" value={formData.address}
-                onChange={handleInputChange} required
-                style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px' }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button type="submit" style={{ padding: '10px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}>
-              {editingId ? 'Update' : 'Save'}
-            </button>
-            <button type="button" onClick={handleCancel} style={{ padding: '10px 24px', background: '#6b7280', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>Loading contacts...</div>
-      ) : nextOfKinList.length === 0 ? (
-        <div style={{ background: 'white', padding: '40px', textAlign: 'center', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-          <p style={{ fontSize: '18px', color: '#4b5563' }}>No emergency contacts added yet.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-          {nextOfKinList.map((kin) => (
-            <div key={kin.id} style={{
-              background: 'white', padding: '24px', borderRadius: '8px', border: '1px solid #e5e7eb',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-            }}>
-              <h3 style={{ margin: '0 0 16px 0', color: '#111827', fontSize: '18px' }}>
-                {kin.first_name} {kin.last_name}
-              </h3>
-              <div style={{ marginBottom: '12px' }}>
-                <span style={{ fontSize: '12px', color: '#6b7280', display: 'block', textTransform: 'uppercase' }}>Relationship</span>
-                <span style={{ fontSize: '16px', color: '#374151' }}>{kin.relationship}</span>
-              </div>
-              <div style={{ marginBottom: '12px' }}>
-                <span style={{ fontSize: '12px', color: '#6b7280', display: 'block', textTransform: 'uppercase' }}>Phone</span>
-                <span style={{ fontSize: '16px', color: '#374151' }}>{kin.phone_number}</span>
-              </div>
-              <div style={{ marginBottom: '12px' }}>
-                <span style={{ fontSize: '12px', color: '#6b7280', display: 'block', textTransform: 'uppercase' }}>Country</span>
-                <span style={{ fontSize: '16px', color: '#374151' }}>{kin.country}</span>
-              </div>
-              
-              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                <button onClick={() => handleEdit(kin)} style={{ flex: 1, padding: '8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', transition: 'background 0.2s' }}>
-                  Edit
-                </button>
-                <button onClick={() => handleDelete(kin.id)} style={{ flex: 1, padding: '8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', transition: 'background 0.2s' }}>
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+              <Button type="submit" mt="xl" loading={loading} fullWidth>
+                {editingId ? 'Save Changes' : 'Create Contact'}
+              </Button>
+            </Stack>
+          </form>
+        </Drawer>
+      </Container>
+    </Box>
   );
 };
 

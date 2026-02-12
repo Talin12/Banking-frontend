@@ -1,72 +1,94 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Container,
+  Title,
+  Text,
+  Paper,
+  Group,
+  Button,
+  Stack,
+  FileButton,
+  Image,
+  Center,
+  Loader,
+  Alert,
+  Box,
+  ThemeIcon,
+  SimpleGrid,
+  Badge,
+} from '@mantine/core';
+import { 
+  IconUpload, 
+  IconPhoto, 
+  IconId, 
+  IconWritingSign, 
+  IconArrowLeft, 
+  IconCheck,
+  IconX
+} from '@tabler/icons-react';
 import api from '../services/api';
 
 const ProfilePhotos = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [fetching, setFetching] = useState(true);
+  const [error, setError] = useState(null);
   
-  // Local state for file selections
+  // Existing profile data
+  const [userProfile, setUserProfile] = useState(null);
+
+  // New file uploads
   const [files, setFiles] = useState({
     photo: null,
     id_photo: null,
-    signature_photo: null
+    signature_photo: null,
   });
 
-  // FETCH & DISPLAY EXISTING IMAGES + Preview state
-  const [userProfile, setUserProfile] = useState(null);
+  // Previews for NEW files
   const [previews, setPreviews] = useState({
     photo: null,
     id_photo: null,
-    signature_photo: null
+    signature_photo: null,
   });
 
-  // ✅ NEW: Fetch current profile images on load
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const response = await api.get('/profiles/my-profile/');
-        setUserProfile(response.data.data || response.data.profile.data);
-      } catch (err) {
-        console.log('No existing profile or fetch failed');
-      }
-    };
-    fetchProfile();
+    fetchProfileData();
   }, []);
 
-  const handleFileChange = (e) => {
-    const { name, files: selectedFiles } = e.target;
-    if (selectedFiles && selectedFiles[0]) {
-      const file = selectedFiles[0];
-      setFiles(prev => ({ ...prev, [name]: file }));
-      
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviews(prev => ({ ...prev, [name]: reader.result }));
-      };
-      reader.readAsDataURL(file);
+  const fetchProfileData = async () => {
+    try {
+      const response = await api.get('/profiles/my-profile/');
+      // Handle various response structures based on your backend
+      const profileData = response.data.profile?.data || response.data.profile || response.data || response.data.data;
+      setUserProfile(profileData);
+    } catch (err) {
+      console.error("Failed to fetch profile", err);
+    } finally {
+      setFetching(false);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleFileChange = (file, type) => {
+    if (file) {
+      setFiles((prev) => ({ ...prev, [type]: file }));
+      setPreviews((prev) => ({ ...prev, [type]: URL.createObjectURL(file) }));
+    }
+  };
+
+  const handleSubmit = async () => {
     setLoading(true);
-    setError('');
-    setSuccess('');
+    setError(null);
 
     const formData = new FormData();
-    
     if (files.photo) formData.append('photo', files.photo);
     if (files.id_photo) formData.append('id_photo', files.id_photo);
     if (files.signature_photo) formData.append('signature_photo', files.signature_photo);
 
     if (!files.photo && !files.id_photo && !files.signature_photo) {
-      setError("Please select at least one document to upload.");
-      setLoading(false);
-      return;
+        setError("Please select at least one document to upload.");
+        setLoading(false);
+        return;
     }
 
     try {
@@ -75,245 +97,166 @@ const ProfilePhotos = () => {
           'Content-Type': 'multipart/form-data',
         },
       });
-      
-      setSuccess('Documents uploaded successfully! Refreshing...');
-      // Refresh profile data
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-      
+      // Reload to show new images
+      window.location.reload();
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.detail || 'Failed to upload documents. Please ensure files are valid images.');
+      setError(err.response?.data?.detail || 'Failed to upload documents.');
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ NEW: Image display component
-  const ImageDisplay = ({ src, alt, size = 'medium', shape = 'square' }) => {
-    if (!src) return null;
-    
-    const sizeStyles = {
-      small: { width: '80px', height: '80px' },
-      medium: { width: '120px', height: '80px' },
-      large: { width: '200px', height: '150px' }
-    };
-
-    const shapeStyles = {
-      square: { borderRadius: '8px', objectFit: 'cover' },
-      circle: { borderRadius: '50%', objectFit: 'cover' },
-      signature: { borderRadius: '8px', objectFit: 'contain' }
-    };
-
-    return (
-      <img 
-        src={src}
-        alt={alt}
-        style={{
-          ...sizeStyles[size],
-          ...shapeStyles[shape],
-          border: '2px solid #e5e7eb',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}
-        onError={(e) => {
-          e.target.style.display = 'none';
-        }}
-      />
-    );
-  };
+  if (fetching) {
+      return <Center h="100vh"><Loader /></Center>;
+  }
 
   return (
-    <div style={{ padding: '40px 20px', maxWidth: '900px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <button 
-        onClick={() => navigate('/dashboard')}
-        style={{ 
-          background: 'none', 
-          border: 'none', 
-          cursor: 'pointer', 
-          color: '#666', 
-          marginBottom: '20px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '5px', 
-          fontSize: '16px' 
-        }}
-      >
-        ← Back to Dashboard
-      </button>
+    <Box bg="gray.0" mih="100vh" py="xl">
+      <Container size="md">
+        <Button 
+          variant="subtle" 
+          color="gray" 
+          mb="md" 
+          leftSection={<IconArrowLeft size={16} />}
+          onClick={() => navigate('/dashboard')}
+        >
+          Back to Dashboard
+        </Button>
 
-      <div style={{ background: 'white', padding: '40px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-        <h1 style={{ margin: '0 0 10px 0', color: '#1f2937' }}>Upload Verification Documents</h1>
-        <p style={{ color: '#6b7280', marginBottom: '30px' }}>
-          To activate your bank account, we need your Profile Photo, ID Document, and Signature.
-          {userProfile && (
-            <> • <span style={{ color: '#10b981' }}>✓ {Object.keys(userProfile).filter(k => k.includes('_url') && userProfile[k]).length} document(s) already uploaded</span></>
+        <Stack gap="lg">
+          <Box>
+            <Title order={2}>Account Verification</Title>
+            <Text c="dimmed">Please upload the required documents to verify your identity.</Text>
+          </Box>
+
+          {error && (
+            <Alert icon={<IconX size={16} />} title="Upload Failed" color="red">
+              {error}
+            </Alert>
           )}
-        </p>
 
-        {error && (
-          <div style={{ background: '#fee2e2', color: '#991b1b', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-            {error}
-          </div>
-        )}
+          <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
+            {/* 1. Profile Photo */}
+            <UploadCard
+              title="Profile Photo"
+              description="A clear photo of your face."
+              icon={<IconPhoto size={30} />}
+              file={files.photo}
+              newPreview={previews.photo}
+              existingUrl={userProfile?.photo_url}
+              onFileChange={(file) => handleFileChange(file, 'photo')}
+              accept="image/png,image/jpeg"
+            />
 
-        {success && (
-          <div style={{ background: '#ecfdf5', color: '#065f46', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-            {success}
-          </div>
-        )}
+            {/* 2. ID Document */}
+            <UploadCard
+              title="ID Document"
+              description="Passport or National ID card."
+              icon={<IconId size={30} />}
+              file={files.id_photo}
+              newPreview={previews.id_photo}
+              existingUrl={userProfile?.id_photo_url}
+              onFileChange={(file) => handleFileChange(file, 'id_photo')}
+              accept="image/png,image/jpeg,application/pdf"
+            />
 
-        {/* ✅ NEW: Current Images Section */}
-        {userProfile && (
-          <div style={{ marginBottom: '40px', padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ margin: '0 0 20px 0', color: '#1e293b', fontSize: '18px' }}>Currently Uploaded</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr)', gap: '20px' }}>
-              
-              {userProfile.photo_url && (
-                <div>
-                  <strong>Profile Photo</strong>
-                  <ImageDisplay 
-                    src={userProfile.photo_url} 
-                    alt="Profile Photo" 
-                    size="small" 
-                    shape="circle" 
-                  />
-                </div>
-              )}
-              
-              {userProfile.id_photo_url && (
-                <div>
-                  <strong>ID Document</strong>
-                  <ImageDisplay 
-                    src={userProfile.id_photo_url} 
-                    alt="ID Document" 
-                    size="medium" 
-                  />
-                </div>
-              )}
-              
-              {userProfile.signature_photo_url && (
-                <div>
-                  <strong>Signature</strong>
-                  <ImageDisplay 
-                    src={userProfile.signature_photo_url} 
-                    alt="Signature" 
-                    size="medium" 
-                    shape="signature" 
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+            {/* 3. Signature */}
+            <UploadCard
+              title="Signature"
+              description="Photo of your signature."
+              icon={<IconWritingSign size={30} />}
+              file={files.signature_photo}
+              newPreview={previews.signature_photo}
+              existingUrl={userProfile?.signature_photo_url}
+              onFileChange={(file) => handleFileChange(file, 'signature_photo')}
+              accept="image/png,image/jpeg"
+              isSignature
+            />
+          </SimpleGrid>
 
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '30px' }}>
-          
-          {/* 1. Profile Photo */}
-          <div style={{ border: '1px solid #e5e7eb', padding: '20px', borderRadius: '12px' }}>
-            <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600', color: '#374151' }}>
-              1. Profile Photo (Selfie) {userProfile?.photo_url && '✓'}
-            </label>
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-              <div style={{ flex: 1 }}>
-                 <input 
-                  type="file" 
-                  name="photo" 
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  style={{ width: '100%' }}
-                />
-                <small style={{ color: '#6b7280', display: 'block', marginTop: '5px' }}>Clear face photo, JPG or PNG.</small>
-              </div>
-              <div>
-                {previews.photo ? (
-                  <img src={previews.photo} alt="Preview" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #10b981' }} />
-                ) : (
-                  userProfile?.photo_url && (
-                    <ImageDisplay src={userProfile.photo_url} alt="Current" size="small" shape="circle" />
-                  )
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* 2. ID Document */}
-          <div style={{ border: '1px solid #e5e7eb', padding: '20px', borderRadius: '12px' }}>
-            <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600', color: '#374151' }}>
-              2. ID Document / Passport {userProfile?.id_photo_url && '✓'}
-            </label>
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-              <div style={{ flex: 1 }}>
-                <input 
-                  type="file" 
-                  name="id_photo" 
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  style={{ width: '100%' }}
-                />
-                <small style={{ color: '#6b7280', display: 'block', marginTop: '5px' }}>Scan of National ID or Passport.</small>
-              </div>
-              <div>
-                {previews.id_photo ? (
-                  <img src={previews.id_photo} alt="Preview" style={{ width: '120px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #10b981' }} />
-                ) : (
-                  userProfile?.id_photo_url && (
-                    <ImageDisplay src={userProfile.id_photo_url} alt="Current" size="medium" />
-                  )
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Signature */}
-          <div style={{ border: '1px solid #e5e7eb', padding: '20px', borderRadius: '12px' }}>
-            <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600', color: '#374151' }}>
-              3. Signature {userProfile?.signature_photo_url && '✓'}
-            </label>
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-              <div style={{ flex: 1 }}>
-                <input 
-                  type="file" 
-                  name="signature_photo" 
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  style={{ width: '100%' }}
-                />
-                <small style={{ color: '#6b7280', display: 'block', marginTop: '5px' }}>Photo of your signature on white paper.</small>
-              </div>
-              <div>
-                {previews.signature_photo ? (
-                  <img src={previews.signature_photo} alt="Preview" style={{ width: '120px', height: '60px', objectFit: 'contain', borderRadius: '8px', border: '2px solid #10b981' }} />
-                ) : (
-                  userProfile?.signature_photo_url && (
-                    <ImageDisplay src={userProfile.signature_photo_url} alt="Current" size="medium" shape="signature" />
-                  )
-                )}
-              </div>
-            </div>
-          </div>
-
-          <button 
-            type="submit" 
-            disabled={loading}
-            style={{ 
-              padding: '14px', 
-              background: loading ? '#9ca3af' : '#2563eb', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
-              fontSize: '16px', 
-              fontWeight: '600', 
-              cursor: loading ? 'not-allowed' : 'pointer',
-              marginTop: '10px'
-            }}
-          >
-            {loading ? 'Uploading...' : 'Upload & Verify'}
-          </button>
-        </form>
-      </div>
-    </div>
+          <Group justify="flex-end" mt="xl">
+            <Button 
+              size="md" 
+              onClick={handleSubmit} 
+              loading={loading} 
+              leftSection={<IconUpload size={20} />}
+              disabled={!files.photo && !files.id_photo && !files.signature_photo}
+            >
+              Upload Selected Documents
+            </Button>
+          </Group>
+        </Stack>
+      </Container>
+    </Box>
   );
+};
+
+// Helper Component
+const UploadCard = ({ title, description, icon, file, newPreview, existingUrl, onFileChange, accept, isSignature }) => {
+    // Determine what image to show: New Preview > Existing URL > Placeholder
+    const showImage = newPreview || existingUrl;
+    const isNew = !!newPreview;
+
+    return (
+        <Paper shadow="sm" radius="md" p="xl" withBorder style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Stack align="center" gap="md" style={{ flex: 1 }}>
+                <Group justify="space-between" w="100%">
+                    <ThemeIcon size={40} radius="xl" variant="light" color="blue">
+                        {icon}
+                    </ThemeIcon>
+                    {existingUrl && !isNew && <Badge color="green" variant="light">Uploaded</Badge>}
+                    {isNew && <Badge color="orange" variant="light">Pending</Badge>}
+                </Group>
+                
+                <div style={{ textAlign: 'center' }}>
+                    <Text fw={600}>{title}</Text>
+                    <Text size="xs" c="dimmed" style={{ lineHeight: 1.2 }}>{description}</Text>
+                </div>
+
+                {showImage ? (
+                    <Box 
+                    style={{ 
+                        width: '100%', 
+                        height: 120, 
+                        borderRadius: 8, 
+                        overflow: 'hidden', 
+                        border: '1px solid #eee',
+                        position: 'relative',
+                        backgroundColor: '#fff'
+                    }}
+                    >
+                    <Image 
+                        src={showImage} 
+                        h="100%" 
+                        w="100%" 
+                        fit={isSignature ? "contain" : "cover"} 
+                    />
+                    </Box>
+                ) : (
+                    <Center 
+                    style={{ 
+                        width: '100%', 
+                        height: 120, 
+                        backgroundColor: '#f8f9fa', 
+                        borderRadius: 8, 
+                        border: '1px dashed #ced4da' 
+                    }}
+                    >
+                    <Text size="xs" c="dimmed">No file</Text>
+                    </Center>
+                )}
+
+                <FileButton onChange={onFileChange} accept={accept}>
+                    {(props) => (
+                    <Button {...props} variant="light" size="xs" fullWidth mt="auto">
+                        {file ? 'Change File' : 'Select File'}
+                    </Button>
+                    )}
+                </FileButton>
+            </Stack>
+        </Paper>
+    );
 };
 
 export default ProfilePhotos;
