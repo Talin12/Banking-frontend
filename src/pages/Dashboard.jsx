@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   AppShell,
@@ -16,8 +16,6 @@ import {
   Stack,
   Divider,
   Box,
-  ActionIcon,
-  Tooltip,
 } from '@mantine/core';
 import {
   IconLogout,
@@ -27,7 +25,7 @@ import {
   IconCheck,
   IconX,
   IconUser,
-  IconPencil, // <-- Import added
+  IconPencil,
 } from '@tabler/icons-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -36,25 +34,32 @@ import api from '../services/api';
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation(); // Hook to detect navigation
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
+  // Fetch profile logic
+  const fetchProfile = useCallback(async () => {
     try {
       const response = await api.get('/profiles/my-profile/');
-      setProfile(response.data.profile?.data || response.data.profile || response.data);
-    } catch {
+      // Robust data extraction: handles wrapped or unwrapped responses
+      const data = response.data.profile?.data || response.data.profile || response.data || {};
+      setProfile(data);
+      setError('');
+    } catch (err) {
+      console.error(err);
       setError('Failed to load profile data');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Force fetch on mount AND whenever location key changes (navigation back to dashboard)
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile, location.key]);
 
   const hasNextOfKin = profile?.next_of_kin?.length > 0;
   const hasPhotos =
@@ -172,7 +177,7 @@ const Dashboard = () => {
                 Welcome back
               </Text>
               <Title order={3} fw={600}>
-                {profile?.first_name || user?.first_name || 'User'}
+                {profile?.full_name || profile?.first_name || user?.first_name || 'User'}
               </Title>
               <Text c="dimmed">{user?.email}</Text>
             </Box>
@@ -202,7 +207,6 @@ const Dashboard = () => {
             </Badge>
           </Group>
           
-          {/* EDIT BUTTON ADDED HERE */}
           <Button 
             variant="light" 
             size="xs" 

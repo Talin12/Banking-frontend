@@ -14,8 +14,8 @@ import {
   SimpleGrid,
   Box,
   Tabs,
-  rem,
   NumberInput,
+  Alert,
 } from '@mantine/core';
 import {
   IconDeviceFloppy,
@@ -24,6 +24,7 @@ import {
   IconBriefcase,
   IconId,
   IconMapPin,
+  IconCheck,
 } from '@tabler/icons-react';
 import api from '../services/api';
 
@@ -31,6 +32,7 @@ const EditProfile = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const form = useForm({
     initialValues: {
@@ -67,7 +69,7 @@ const EditProfile = () => {
       date_of_employment: '',
       annual_income: '',
 
-      // Account Preferences (if allowed to edit)
+      // Account
       account_currency: '',
       account_type: '',
     },
@@ -87,15 +89,16 @@ const EditProfile = () => {
       const response = await api.get('/profiles/my-profile/');
       const data = response.data.profile?.data || response.data.profile || response.data || {};
       
-      // Map backend fields to form (ensure nulls become empty strings)
+      // Map backend fields to form, converting nulls to empty strings for inputs
       const sanitizedData = {};
       Object.keys(form.values).forEach(key => {
-        sanitizedData[key] = data[key] || '';
+        sanitizedData[key] = data[key] === null || data[key] === undefined ? '' : data[key];
       });
       
       form.setValues(sanitizedData);
     } catch (error) {
       console.error('Failed to load profile', error);
+      setError('Could not load existing profile data.');
     } finally {
       setFetchLoading(false);
     }
@@ -103,19 +106,32 @@ const EditProfile = () => {
 
   const handleSubmit = async (values) => {
     setLoading(true);
+    setError(null);
     try {
-      // Filter out empty strings if backend expects nulls or to avoid sending empty fields
+      // CLEAN PAYLOAD: Convert empty strings back to null for dates/numbers to avoid backend validation errors
       const payload = { ...values };
+      const dateFields = ['date_of_birth', 'id_issue_date', 'id_expiry_date', 'date_of_employment'];
       
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === '') {
+          // If it's a date field or looks like a number but is empty, send null
+          if (dateFields.includes(key)) {
+            payload[key] = null;
+          } 
+        }
+      });
+
       await api.patch('/profiles/my-profile/', payload);
+      
+      // Force a small delay or navigation to ensure Dashboard re-fetches
       navigate('/dashboard');
     } catch (error) {
       console.error('Failed to update profile', error);
-      // Handle backend validation errors
-      if (error.response?.data?.errors) {
-        form.setErrors(error.response.data.errors);
-      } else if (error.response?.data) {
-         // Attempt to map generic errors
+      const msg = error.response?.data?.message || error.response?.data?.detail || 'Failed to update profile.';
+      setError(msg);
+
+      // Handle field-specific errors
+      if (error.response?.data) {
          const backendErrors = error.response.data;
          const formErrors = {};
          Object.keys(backendErrors).forEach(key => {
@@ -154,6 +170,12 @@ const EditProfile = () => {
               </Text>
             </div>
           </Group>
+
+          {error && (
+            <Alert color="red" mb="lg" title="Error">
+              {error}
+            </Alert>
+          )}
 
           <form onSubmit={form.onSubmit(handleSubmit)}>
             <Tabs defaultValue="personal" variant="outline" radius="md">
@@ -230,7 +252,7 @@ const EditProfile = () => {
                   <TextInput
                     label="Address"
                     {...form.getInputProps('address')}
-                    style={{ gridColumn: 'span 2' }} // Full width
+                    style={{ gridColumn: 'span 2' }} 
                   />
                 </SimpleGrid>
               </Tabs.Panel>
