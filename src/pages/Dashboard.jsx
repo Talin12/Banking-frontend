@@ -112,7 +112,17 @@ const Dashboard = () => {
             color="orange"
             title="Action required"
           >
-            Add a Next of Kin to activate your account.
+            <Group justify="space-between" align="center" gap="md">
+              <Text size="sm">Add a Next of Kin to activate your account.</Text>
+              <Button
+                size="xs"
+                variant="white"
+                color="orange"
+                onClick={() => navigate('/next-of-kin')}
+              >
+                Add Next of Kin
+              </Button>
+            </Group>
           </Alert>
         )}
 
@@ -123,7 +133,17 @@ const Dashboard = () => {
             color="blue"
             title="Verification pending"
           >
-            Upload profile photo, ID document and signature.
+            <Group justify="space-between" align="center" gap="md">
+              <Text size="sm">Upload profile photo, ID document and signature.</Text>
+              <Button
+                size="xs"
+                variant="white"
+                color="blue"
+                onClick={() => navigate('/upload-photos')}
+              >
+                Upload Documents
+              </Button>
+            </Group>
           </Alert>
         )}
       </Stack>
