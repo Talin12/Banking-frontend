@@ -138,8 +138,16 @@ export default function NextOfKin() {
     }
   };
 
-  const titleOptions = ['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Prof'];
-  const genderOptions = ['Male', 'Female', 'Other'];
+  const titleOptions = [
+    { label: 'Mr', value: 'mr' },
+    { label: 'Mrs', value: 'mrs' },
+    { label: 'Miss', value: 'miss' }
+  ];
+  
+  const genderOptions = [
+    { label: 'Male', value: 'male' },
+    { label: 'Female', value: 'female' }
+  ];
 
   return (
     <PageTransition>
@@ -278,7 +286,7 @@ export default function NextOfKin() {
                       >
                         <option value="">Select</option>
                         {titleOptions.map((o) => (
-                          <option key={o} value={o}>{o}</option>
+                          <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
                       </select>
                     </div>
@@ -291,7 +299,7 @@ export default function NextOfKin() {
                       >
                         <option value="">Select</option>
                         {genderOptions.map((o) => (
-                          <option key={o} value={o.toLowerCase()}>{o}</option>
+                          <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
                       </select>
                     </div>
