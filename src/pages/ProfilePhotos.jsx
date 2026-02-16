@@ -24,7 +24,6 @@ import {
   IconId, 
   IconWritingSign, 
   IconArrowLeft, 
-  IconCheck,
   IconX
 } from '@tabler/icons-react';
 import api from '../services/api';
@@ -52,6 +51,23 @@ const ProfilePhotos = () => {
     signature_photo: null,
   });
 
+  // Error Helper
+  const getErrorMessage = (err, defaultMsg) => {
+    if (err.response && err.response.data) {
+      const data = err.response.data;
+      if (data.detail) return data.detail;
+      if (data.non_field_errors) return data.non_field_errors[0];
+
+      const firstKey = Object.keys(data)[0];
+      if (firstKey) {
+        const msg = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
+        const formattedKey = firstKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return `${formattedKey}: ${msg}`;
+      }
+    }
+    return defaultMsg;
+  };
+
   useEffect(() => {
     fetchProfileData();
   }, []);
@@ -59,7 +75,6 @@ const ProfilePhotos = () => {
   const fetchProfileData = async () => {
     try {
       const response = await api.get('/profiles/my-profile/');
-      // Handle various response structures based on your backend
       const profileData = response.data.profile?.data || response.data.profile || response.data || response.data.data;
       setUserProfile(profileData);
     } catch (err) {
@@ -101,7 +116,7 @@ const ProfilePhotos = () => {
       window.location.reload();
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.detail || 'Failed to upload documents.');
+      setError(getErrorMessage(err, 'Failed to upload documents.'));
     } finally {
       setLoading(false);
     }

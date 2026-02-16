@@ -19,6 +19,24 @@ const VirtualCards = () => {
   const [topUpAmount, setTopUpAmount] = useState('');
   const [topUpLoading, setTopUpLoading] = useState(false);
 
+  // Error Helper
+  const getErrorMessage = (err, defaultMsg) => {
+    if (err.response && err.response.data) {
+      const data = err.response.data;
+      if (data.error) return data.error;
+      if (data.detail) return data.detail;
+      if (data.non_field_errors) return data.non_field_errors[0];
+
+      const firstKey = Object.keys(data)[0];
+      if (firstKey) {
+        const msg = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
+        const formattedKey = firstKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return `${formattedKey}: ${msg}`;
+      }
+    }
+    return defaultMsg;
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -28,26 +46,16 @@ const VirtualCards = () => {
       // 1. Fetch Virtual Cards
       const cardRes = await api.get('/cards/virtual-cards/');
       
-      console.log("Full API Response:", cardRes.data); // Debugging
-
-      // --- FIX: Correctly extract data from the backend wrapper ---
-      // Backend returns: { visa_card: { count: 1, results: [...] } }
       const visaCardData = cardRes.data.visa_card;
-      
       let finalCards = [];
 
       if (visaCardData) {
-        // Case A: Pagination is on (standard Django Rest Framework + your custom renderer)
         if (Array.isArray(visaCardData.results)) {
           finalCards = visaCardData.results;
-        } 
-        // Case B: Pagination is off (just an array inside visa_card)
-        else if (Array.isArray(visaCardData)) {
+        } else if (Array.isArray(visaCardData)) {
           finalCards = visaCardData;
         }
-      } 
-      // Case C: Fallback (maybe structure changed or different renderer)
-      else if (Array.isArray(cardRes.data)) {
+      } else if (Array.isArray(cardRes.data)) {
         finalCards = cardRes.data;
       } else if (cardRes.data.results) {
         finalCards = cardRes.data.results;
@@ -55,13 +63,10 @@ const VirtualCards = () => {
 
       setCards(finalCards);
 
-      // 2. Fetch Profile to get Account Number (Auto-fill for creation)
-      // Wrapped in separate try/catch so it doesn't break the page if profile fails
+      // 2. Fetch Profile to get Account Number
       try {
         const profileRes = await api.get('/profiles/my-profile/');
-        // Handle potentially nested profile response
         const profile = profileRes.data.profile?.data || profileRes.data.profile || profileRes.data;
-        
         if (profile && profile.account_number) {
           setAccountNumber(profile.account_number);
         }
@@ -70,16 +75,14 @@ const VirtualCards = () => {
       }
 
     } catch (err) {
-      console.error("Main Fetch Error:", err);
-      // Ignore 404s (just means no cards created yet)
       if (err.response?.status !== 404) {
         if (err.response?.status === 401) {
           setError("Session expired. Please login again.");
         } else {
-          setError('Failed to load cards. Please try again later.');
+          setError(getErrorMessage(err, 'Failed to load cards.'));
         }
       } else {
-        setCards([]); // Ensure cards is empty array on 404
+        setCards([]);
       }
     } finally {
       setLoading(false);
@@ -94,11 +97,10 @@ const VirtualCards = () => {
         bank_account_number: accountNumber
       });
       setShowCreateModal(false);
-      fetchData(); // Refresh list to show new card
+      fetchData();
       alert('Virtual card created successfully!');
     } catch (err) {
-      const errorMsg = err.response?.data?.error || err.response?.data?.detail || 'Failed to create card.';
-      alert(errorMsg);
+      alert(getErrorMessage(err, 'Failed to create card.'));
     } finally {
       setCreateLoading(false);
     }
@@ -109,17 +111,15 @@ const VirtualCards = () => {
     if (!selectedCard) return;
     setTopUpLoading(true);
     try {
-      // FIX: Changed from post to put to match UpdateAPIView
       await api.put(`/cards/virtual-cards/${selectedCard.id}/top-up/`, {
         amount: topUpAmount
       });
       setShowTopUpModal(false);
       setTopUpAmount('');
-      fetchData(); // Refresh balance
+      fetchData();
       alert('Card topped up successfully!');
     } catch (err) {
-       const errorMsg = err.response?.data?.error || err.response?.data?.detail || 'Top-up failed.';
-       alert(errorMsg);
+       alert(getErrorMessage(err, 'Top-up failed.'));
     } finally {
       setTopUpLoading(false);
     }
@@ -131,7 +131,7 @@ const VirtualCards = () => {
       await api.delete(`/cards/virtual-cards/${id}/`);
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to delete card.');
+      alert(getErrorMessage(err, 'Failed to delete card.'));
     }
   };
 

@@ -39,7 +39,42 @@ const Register = () => {
       setSuccess('Registration successful! Please check your email to activate your account.');
       setTimeout(() => navigate('/login'), 3000);
     } catch (err) {
-      setError(err.response?.data?.email?.[0] || err.response?.data?.detail || 'Registration failed');
+      // --- IMPROVED ERROR HANDLING START ---
+      if (err.response && err.response.data) {
+        const data = err.response.data;
+
+        // 1. Check for specific common field errors first
+        if (data.password) {
+          setError(data.password[0]); // e.g., "This password is too short."
+        } else if (data.email) {
+          setError(data.email[0]); // e.g., "Enter a valid email address."
+        } else if (data.id_no) {
+          setError(`ID Number: ${data.id_no[0]}`);
+        } else if (data.username) {
+          setError(data.username[0]);
+        } else if (data.non_field_errors) {
+          setError(data.non_field_errors[0]); // General errors unrelated to a specific field
+        } else if (data.detail) {
+          setError(data.detail); // Authentication/Permission generic errors
+        } else {
+          // 2. Fallback: Find the first available error message from any field
+          const firstErrorKey = Object.keys(data)[0];
+          if (firstErrorKey) {
+            const errorMsg = Array.isArray(data[firstErrorKey]) 
+              ? data[firstErrorKey][0] 
+              : data[firstErrorKey];
+            
+            // Format key to look nice (e.g., "first_name" -> "First name")
+            const formattedKey = firstErrorKey.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+            setError(`${formattedKey}: ${errorMsg}`);
+          } else {
+            setError('Registration failed. Please try again.');
+          }
+        }
+      } else {
+        setError('Network error. Please try again later.');
+      }
+      // --- IMPROVED ERROR HANDLING END ---
     } finally {
       setLoading(false);
     }

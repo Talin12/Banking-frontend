@@ -3,6 +3,28 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
+// Helper to parse errors consistently
+const getErrorMessage = (err) => {
+  if (err.response && err.response.data) {
+    const data = err.response.data;
+    // 1. Custom backend error (e.g. lockout)
+    if (data.error) return data.error;
+    // 2. Generic DRF/Djoser errors
+    if (data.detail) return data.detail;
+    if (data.non_field_errors) return data.non_field_errors[0];
+    
+    // 3. specific field errors (e.g. "email": ["Enter a valid email."])
+    const firstKey = Object.keys(data)[0];
+    if (firstKey) {
+      const msg = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
+      // Beautify the key (e.g. "security_answer" -> "Security Answer")
+      const formattedKey = firstKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      return `${formattedKey}: ${msg}`;
+    }
+  }
+  return 'Login failed. Please check your connection.';
+};
+
 const Login = () => {
   const [step, setStep] = useState(1); // 1 = email/password, 2 = OTP
   const [email, setEmail] = useState('');
@@ -23,7 +45,7 @@ const Login = () => {
       setStep(2); // Move to OTP step
       setError(''); // Clear any errors
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -39,7 +61,7 @@ const Login = () => {
       await checkAuth(); // Update user state
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Invalid OTP');
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

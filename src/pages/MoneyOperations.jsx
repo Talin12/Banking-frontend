@@ -10,17 +10,15 @@ const MoneyOperations = () => {
   const [accountNumber, setAccountNumber] = useState('');
 
   // --- STATE MANAGEMENT ---
-  
-  // Deposit
   const [depositAmount, setDepositAmount] = useState('');
-
+  
   // Withdraw
-  const [withdrawStep, setWithdrawStep] = useState(1); // 1: Initiate, 2: Username
+  const [withdrawStep, setWithdrawStep] = useState(1);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawUsername, setWithdrawUsername] = useState('');
 
   // Transfer
-  const [transferStep, setTransferStep] = useState(1); // 1: Initiate, 2: Question, 3: OTP
+  const [transferStep, setTransferStep] = useState(1);
   const [recipientAccount, setRecipientAccount] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
   const [transferDesc, setTransferDesc] = useState('');
@@ -28,7 +26,6 @@ const MoneyOperations = () => {
   const [otp, setOtp] = useState('');
 
   useEffect(() => {
-    // Fetch user's account number for default fields
     const fetchAccount = async () => {
       try {
         const res = await api.get('/profiles/my-profile/');
@@ -43,14 +40,29 @@ const MoneyOperations = () => {
 
   const clearMessage = () => setMessage({ text: '', type: '' });
 
-  // --- HANDLERS ---
+  // Helper for error parsing
+  const getErrorMessage = (err, defaultMsg) => {
+    if (err.response && err.response.data) {
+      const data = err.response.data;
+      if (data.error) return data.error;
+      if (data.detail) return data.detail;
+      if (data.non_field_errors) return data.non_field_errors[0];
+
+      const firstKey = Object.keys(data)[0];
+      if (firstKey) {
+        const msg = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
+        const formattedKey = firstKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return `${formattedKey}: ${msg}`;
+      }
+    }
+    return defaultMsg;
+  };
 
   const handleDeposit = async (e) => {
     e.preventDefault();
     setLoading(true);
     clearMessage();
     try {
-      // Backend requires account_number in the body
       await api.post('/accounts/deposit/', { 
         account_number: accountNumber, 
         amount: depositAmount 
@@ -58,17 +70,13 @@ const MoneyOperations = () => {
       setMessage({ text: 'Deposit Successful!', type: 'success' });
       setDepositAmount('');
     } catch (err) {
-      // Custom Error handling for Teller Permission
       if (err.response?.status === 403) {
         setMessage({ 
           text: 'Permission Denied: You need to be a Bank Teller to perform deposits.', 
           type: 'error' 
         });
       } else {
-        setMessage({ 
-          text: err.response?.data?.error || 'Deposit failed.', 
-          type: 'error' 
-        });
+        setMessage({ text: getErrorMessage(err, 'Deposit failed.'), type: 'error' });
       }
     } finally {
       setLoading(false);
@@ -84,10 +92,10 @@ const MoneyOperations = () => {
         account_number: accountNumber,
         amount: withdrawAmount
       });
-      setWithdrawStep(2); // Move to Username verification
+      setWithdrawStep(2);
       setMessage({ text: 'Please verify your username to confirm.', type: 'info' });
     } catch (err) {
-      setMessage({ text: err.response?.data?.error || 'Withdrawal initiation failed.', type: 'error' });
+      setMessage({ text: getErrorMessage(err, 'Withdrawal initiation failed.'), type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -106,7 +114,7 @@ const MoneyOperations = () => {
       setWithdrawAmount('');
       setWithdrawUsername('');
     } catch (err) {
-      setMessage({ text: err.response?.data?.error || 'Verification failed.', type: 'error' });
+      setMessage({ text: getErrorMessage(err, 'Verification failed.'), type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -117,17 +125,16 @@ const MoneyOperations = () => {
     setLoading(true);
     clearMessage();
     try {
-      // Note: Backend expects sender_account and receiver_account
       await api.post('/accounts/transfer/initiate/', {
         sender_account: accountNumber,
         receiver_account: recipientAccount,
         amount: transferAmount,
         description: transferDesc
       });
-      setTransferStep(2); // Move to Security Question
+      setTransferStep(2);
       setMessage({ text: 'Please answer your security question.', type: 'info' });
     } catch (err) {
-      setMessage({ text: err.response?.data?.error || 'Transfer initiation failed.', type: 'error' });
+      setMessage({ text: getErrorMessage(err, 'Transfer initiation failed.'), type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -141,10 +148,10 @@ const MoneyOperations = () => {
       await api.post('/accounts/transfer/verify-security-question/', {
         security_answer: securityAnswer
       });
-      setTransferStep(3); // Move to OTP
+      setTransferStep(3);
       setMessage({ text: 'Security Verified. OTP sent to email.', type: 'info' });
     } catch (err) {
-      setMessage({ text: err.response?.data?.error || 'Incorrect security answer.', type: 'error' });
+      setMessage({ text: getErrorMessage(err, 'Incorrect security answer.'), type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -155,10 +162,7 @@ const MoneyOperations = () => {
     setLoading(true);
     clearMessage();
     try {
-      // WARNING: Ensure '/accounts/transfer/verify-otp/' is mapped in your backend urls.py!
-      await api.post('/accounts/transfer/verify-otp/', {
-        otp: otp
-      });
+      await api.post('/accounts/transfer/verify-otp/', { otp: otp });
       setMessage({ text: 'Transfer Complete!', type: 'success' });
       setTransferStep(1);
       setRecipientAccount('');
@@ -167,10 +171,10 @@ const MoneyOperations = () => {
       setSecurityAnswer('');
       setOtp('');
     } catch (err) {
-      if (err.response?.status === 404) {
+       if (err.response?.status === 404) {
         setMessage({ text: 'Error: Transfer OTP endpoint not found on server.', type: 'error' });
       } else {
-        setMessage({ text: err.response?.data?.error || 'Invalid OTP.', type: 'error' });
+        setMessage({ text: getErrorMessage(err, 'Invalid OTP.'), type: 'error' });
       }
     } finally {
       setLoading(false);
