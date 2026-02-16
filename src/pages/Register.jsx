@@ -1,6 +1,34 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  Container,
+  Paper,
+  Title,
+  Text,
+  TextInput,
+  PasswordInput,
+  Select,
+  Button,
+  Stack,
+  Alert,
+  Box,
+} from '@mantine/core';
+import api from '../services/api';
+
+const ROYAL = {
+  surface: 'rgba(30, 41, 59, 0.7)',
+  border: 'rgba(212, 175, 55, 0.25)',
+};
+
+const SECURITY_OPTIONS = [
+  { value: '', label: 'Select a question...' },
+  { value: 'maiden_name', label: "What is your mother's maiden name?" },
+  { value: 'favourite_color', label: 'What is your favourite color?' },
+  { value: 'birth_city', label: 'What is the city where you were born?' },
+  { value: 'childhood_friend', label: 'What is the name of your childhood best friend?' },
+];
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -20,7 +48,12 @@ const Register = () => {
   const navigate = useNavigate();
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (value) => {
+    setFormData((prev) => ({ ...prev, security_question: value ?? '' }));
   };
 
   const handleSubmit = async (e) => {
@@ -39,188 +72,175 @@ const Register = () => {
       setSuccess('Registration successful! Please check your email to activate your account.');
       setTimeout(() => navigate('/login'), 3000);
     } catch (err) {
-      // --- IMPROVED ERROR HANDLING START ---
-      if (err.response && err.response.data) {
+      if (err.response?.data) {
         const data = err.response.data;
-
-        // 1. Check for specific common field errors first
-        if (data.password) {
-          setError(data.password[0]); // e.g., "This password is too short."
-        } else if (data.email) {
-          setError(data.email[0]); // e.g., "Enter a valid email address."
-        } else if (data.id_no) {
-          setError(`ID Number: ${data.id_no[0]}`);
-        } else if (data.username) {
-          setError(data.username[0]);
-        } else if (data.non_field_errors) {
-          setError(data.non_field_errors[0]); // General errors unrelated to a specific field
-        } else if (data.detail) {
-          setError(data.detail); // Authentication/Permission generic errors
-        } else {
-          // 2. Fallback: Find the first available error message from any field
+        if (data.password) setError(data.password[0]);
+        else if (data.email) setError(data.email[0]);
+        else if (data.id_no) setError(`ID Number: ${data.id_no[0]}`);
+        else if (data.username) setError(data.username[0]);
+        else if (data.non_field_errors) setError(data.non_field_errors[0]);
+        else if (data.detail) setError(data.detail);
+        else {
           const firstErrorKey = Object.keys(data)[0];
           if (firstErrorKey) {
-            const errorMsg = Array.isArray(data[firstErrorKey]) 
-              ? data[firstErrorKey][0] 
+            const errorMsg = Array.isArray(data[firstErrorKey])
+              ? data[firstErrorKey][0]
               : data[firstErrorKey];
-            
-            // Format key to look nice (e.g., "first_name" -> "First name")
-            const formattedKey = firstErrorKey.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const formattedKey = firstErrorKey
+              .replace('_', ' ')
+              .replace(/\b\w/g, (c) => c.toUpperCase());
             setError(`${formattedKey}: ${errorMsg}`);
-          } else {
-            setError('Registration failed. Please try again.');
-          }
+          } else setError('Registration failed. Please try again.');
         }
-      } else {
-        setError('Network error. Please try again later.');
-      }
-      // --- IMPROVED ERROR HANDLING END ---
+      } else setError('Network error. Please try again later.');
     } finally {
       setLoading(false);
     }
   };
 
+  const cardVariants = {
+    hidden: { opacity: 0, y: 24 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] },
+    },
+  };
+
   return (
-    <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px' }}>
-      <h1>Create Account</h1>
-
-      {error && (
-        <div style={{ background: '#fee', color: '#c00', padding: '10px', marginBottom: '15px', borderRadius: '4px' }}>
-          {error}
-        </div>
-      )}
-
-      {success && (
-        <div style={{ background: '#efe', color: '#0a0', padding: '10px', marginBottom: '15px', borderRadius: '4px' }}>
-          {success}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>First Name</label>
-          <input
-            type="text"
-            name="first_name"
-            value={formData.first_name}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '8px', fontSize: '14px' }}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Last Name</label>
-          <input
-            type="text"
-            name="last_name"
-            value={formData.last_name}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '8px', fontSize: '14px' }}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Email</label>
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '8px', fontSize: '14px' }}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>ID Number (numbers only)</label>
-          <input
-            type="number"
-            name="id_no"
-            value={formData.id_no}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '8px', fontSize: '14px' }}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Security Question</label>
-          <select
-            name="security_question"
-            value={formData.security_question}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '8px', fontSize: '14px' }}
+    <Box py={50} style={{ minHeight: '100vh' }}>
+      <Container size="xs">
+        <motion.div initial="hidden" animate="visible" variants={cardVariants}>
+          <Paper
+            p="xl"
+            radius="lg"
+            style={{
+              background: ROYAL.surface,
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: `1px solid ${ROYAL.border}`,
+            }}
           >
-            <option value="">Select a question...</option>
-            <option value="maiden_name">What is your mother's maiden name?</option>
-            <option value="favourite_color">What is your favourite color?</option>
-            <option value="birth_city">What is the city where you were born?</option>
-            <option value="childhood_friend">What is the name of your childhood bestfriend?</option>
-          </select>
-        </div>
+            <Title order={1} ta="center" mb="xs" fw={600} c="gold.4">
+              Create Account
+            </Title>
+            <Text ta="center" c="dimmed" size="sm" mb="lg">
+              Join NextGen Bank
+            </Text>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Security Answer</label>
-          <input
-            type="text"
-            name="security_answer"
-            value={formData.security_answer}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '8px', fontSize: '14px' }}
-          />
-        </div>
+            {error && (
+              <Alert color="red" variant="light" radius="md" mb="lg">
+                {error}
+              </Alert>
+            )}
+            {success && (
+              <Alert color="emerald" variant="light" radius="md" mb="lg">
+                {success}
+              </Alert>
+            )}
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Password</label>
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '8px', fontSize: '14px' }}
-          />
-        </div>
+            <form onSubmit={handleSubmit}>
+              <Stack gap="md">
+                <TextInput
+                  label="First Name"
+                  name="first_name"
+                  value={formData.first_name}
+                  onChange={handleChange}
+                  required
+                  size="md"
+                  radius="md"
+                />
+                <TextInput
+                  label="Last Name"
+                  name="last_name"
+                  value={formData.last_name}
+                  onChange={handleChange}
+                  required
+                  size="md"
+                  radius="md"
+                />
+                <TextInput
+                  label="Email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required
+                  size="md"
+                  radius="md"
+                />
+                <TextInput
+                  label="ID Number (numbers only)"
+                  name="id_no"
+                  type="number"
+                  value={formData.id_no}
+                  onChange={handleChange}
+                  required
+                  size="md"
+                  radius="md"
+                />
+                <Select
+                  label="Security Question"
+                  placeholder="Select a question..."
+                  data={SECURITY_OPTIONS}
+                  value={formData.security_question || null}
+                  onChange={handleSelectChange}
+                  required
+                  size="md"
+                  radius="md"
+                />
+                <TextInput
+                  label="Security Answer"
+                  name="security_answer"
+                  value={formData.security_answer}
+                  onChange={handleChange}
+                  required
+                  size="md"
+                  radius="md"
+                />
+                <PasswordInput
+                  label="Password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  size="md"
+                  radius="md"
+                />
+                <PasswordInput
+                  label="Confirm Password"
+                  name="re_password"
+                  value={formData.re_password}
+                  onChange={handleChange}
+                  required
+                  size="md"
+                  radius="md"
+                />
+                <Button
+                  type="submit"
+                  fullWidth
+                  size="md"
+                  loading={loading}
+                  color="gold"
+                  variant="filled"
+                  radius="md"
+                  style={{ boxShadow: '0 0 20px rgba(212, 175, 55, 0.25)' }}
+                >
+                  {loading ? 'Registering...' : 'Register'}
+                </Button>
+              </Stack>
+            </form>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Confirm Password</label>
-          <input
-            type="password"
-            name="re_password"
-            value={formData.re_password}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '8px', fontSize: '14px' }}
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: '100%',
-            padding: '10px',
-            background: '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '16px',
-            marginBottom: '10px'
-          }}
-        >
-          {loading ? 'Registering...' : 'Register'}
-        </button>
-      </form>
-
-      <p style={{ textAlign: 'center', marginTop: '15px' }}>
-        Already have an account? <Link to="/login">Login here</Link>
-      </p>
-    </div>
+            <Text ta="center" mt="lg" size="sm" c="dimmed">
+              Already have an account?{' '}
+              <Link to="/login" style={{ color: 'var(--mantine-color-gold-4)' }}>
+                Login here
+              </Link>
+            </Text>
+          </Paper>
+        </motion.div>
+      </Container>
+    </Box>
   );
 };
 
