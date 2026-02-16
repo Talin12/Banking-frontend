@@ -1,104 +1,156 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Plus, Trash2, Sparkles } from 'lucide-react';
 import api from '../services/api';
+import { Button } from '../components/ui/Button';
+import { Card, CardContent } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
+import { PageTransition } from '../components/layout/PageTransition';
 
-const VirtualCards = () => {
+function formatCardNumber(num) {
+  return num ? num.replace(/(\d{4})/g, '$1 ').trim() : '**** **** **** ****';
+}
+
+function formatExpiry(dateString) {
+  if (!dateString) return 'MM/YY';
+  const d = new Date(dateString);
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
+}
+
+function getErrorMessage(err, defaultMsg) {
+  if (err.response?.data) {
+    const d = err.response.data;
+    if (d.error) return d.error;
+    if (d.detail) return d.detail;
+    if (d.non_field_errors) return d.non_field_errors[0];
+    const key = Object.keys(d)[0];
+    if (key) {
+      const msg = Array.isArray(d[key]) ? d[key][0] : d[key];
+      const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      return `${label}: ${msg}`;
+    }
+  }
+  return defaultMsg;
+}
+
+function VirtualCardItem({ card, onTopUp, onDelete }) {
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    setTilt({ x: (y - 0.5) * 8, y: (x - 0.5) * -8 });
+  };
+
+  const handleMouseLeave = () => setTilt({ x: 0, y: 0 });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="perspective-[1000px]"
+    >
+      <motion.div
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        style={{
+          transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+          transformStyle: 'preserve-3d',
+        }}
+        className="rounded-2xl overflow-hidden border border-elite-border bg-gradient-to-br from-elite-card via-elite-surface to-elite-black p-6 shadow-xl hover:shadow-glow-gold hover:border-gold/30 transition-all duration-300"
+      >
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-metallic pointer-events-none" />
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gold/20 rounded-full blur-2xl" />
+          <div className="relative flex justify-between items-start mb-8">
+            <span className="text-gold font-display font-heading italic text-lg">NextGen Bank</span>
+            <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/10 text-white border border-white/20">
+              {card.status?.toUpperCase() || 'ACTIVE'}
+            </span>
+          </div>
+          <div className="relative text-xl lg:text-2xl font-mono tracking-widest text-white mb-6" style={{ letterSpacing: '0.2em' }}>
+            {formatCardNumber(card.card_number)}
+          </div>
+          <div className="relative flex justify-between items-end">
+            <div>
+              <p className="text-[10px] uppercase text-white/60 tracking-wider">Expires</p>
+              <p className="text-sm font-medium text-white">{formatExpiry(card.expiry_date)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase text-white/60 tracking-wider">CVV</p>
+              <p className="text-sm font-medium text-white">{card.cvv}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] uppercase text-white/60 tracking-wider">Balance</p>
+              <p className="text-lg font-heading text-gold">${card.balance ?? '0.00'}</p>
+            </div>
+          </div>
+          <div className="mt-6 pt-4 border-t border-white/10 flex gap-3">
+            <Button variant="ghost" size="sm" className="flex-1" onClick={() => onTopUp(card)}>
+              Top up
+            </Button>
+            <Button variant="danger" size="sm" className="flex-1" onClick={() => onDelete(card.id)}>
+              <Trash2 size={16} /> Delete
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+export default function VirtualCards() {
   const navigate = useNavigate();
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // State for Create Card
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [accountNumber, setAccountNumber] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
-
-  // State for Top Up
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [selectedCard, setSelectedCard] = useState(null);
   const [topUpAmount, setTopUpAmount] = useState('');
   const [topUpLoading, setTopUpLoading] = useState(false);
 
-  // Error Helper
-  const getErrorMessage = (err, defaultMsg) => {
-    if (err.response && err.response.data) {
-      const data = err.response.data;
-      if (data.error) return data.error;
-      if (data.detail) return data.detail;
-      if (data.non_field_errors) return data.non_field_errors[0];
-
-      const firstKey = Object.keys(data)[0];
-      if (firstKey) {
-        const msg = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
-        const formattedKey = firstKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        return `${formattedKey}: ${msg}`;
-      }
+  const fetchData = async () => {
+    try {
+      const cardRes = await api.get('/cards/virtual-cards/');
+      let list = [];
+      const visa = cardRes.data.visa_card;
+      if (visa?.results) list = visa.results;
+      else if (Array.isArray(visa)) list = visa;
+      else if (Array.isArray(cardRes.data)) list = cardRes.data;
+      else if (cardRes.data?.results) list = cardRes.data.results;
+      setCards(list);
+      try {
+        const profileRes = await api.get('/profiles/my-profile/');
+        const p = profileRes.data.profile?.data || profileRes.data.profile || profileRes.data;
+        if (p?.account_number) setAccountNumber(p.account_number);
+      } catch (_) {}
+      setError('');
+    } catch (err) {
+      if (err.response?.status === 401) setError('Session expired. Please login again.');
+      else if (err.response?.status !== 404) setError(getErrorMessage(err, 'Failed to load cards.'));
+      else setCards([]);
+    } finally {
+      setLoading(false);
     }
-    return defaultMsg;
   };
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    try {
-      // 1. Fetch Virtual Cards
-      const cardRes = await api.get('/cards/virtual-cards/');
-      
-      const visaCardData = cardRes.data.visa_card;
-      let finalCards = [];
-
-      if (visaCardData) {
-        if (Array.isArray(visaCardData.results)) {
-          finalCards = visaCardData.results;
-        } else if (Array.isArray(visaCardData)) {
-          finalCards = visaCardData;
-        }
-      } else if (Array.isArray(cardRes.data)) {
-        finalCards = cardRes.data;
-      } else if (cardRes.data.results) {
-        finalCards = cardRes.data.results;
-      }
-
-      setCards(finalCards);
-
-      // 2. Fetch Profile to get Account Number
-      try {
-        const profileRes = await api.get('/profiles/my-profile/');
-        const profile = profileRes.data.profile?.data || profileRes.data.profile || profileRes.data;
-        if (profile && profile.account_number) {
-          setAccountNumber(profile.account_number);
-        }
-      } catch (profileErr) {
-        console.warn("Could not fetch profile for account number:", profileErr);
-      }
-
-    } catch (err) {
-      if (err.response?.status !== 404) {
-        if (err.response?.status === 401) {
-          setError("Session expired. Please login again.");
-        } else {
-          setError(getErrorMessage(err, 'Failed to load cards.'));
-        }
-      } else {
-        setCards([]);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleCreateCard = async (e) => {
     e.preventDefault();
     setCreateLoading(true);
     try {
-      await api.post('/cards/virtual-cards/', {
-        bank_account_number: accountNumber
-      });
+      await api.post('/cards/virtual-cards/', { bank_account_number: accountNumber });
       setShowCreateModal(false);
       fetchData();
-      alert('Virtual card created successfully!');
+      alert('Virtual card created successfully.');
     } catch (err) {
       alert(getErrorMessage(err, 'Failed to create card.'));
     } finally {
@@ -111,225 +163,146 @@ const VirtualCards = () => {
     if (!selectedCard) return;
     setTopUpLoading(true);
     try {
-      await api.put(`/cards/virtual-cards/${selectedCard.id}/top-up/`, {
-        amount: topUpAmount
-      });
+      await api.put(`/cards/virtual-cards/${selectedCard.id}/top-up/`, { amount: topUpAmount });
       setShowTopUpModal(false);
       setTopUpAmount('');
+      setSelectedCard(null);
       fetchData();
-      alert('Card topped up successfully!');
+      alert('Card topped up successfully.');
     } catch (err) {
-       alert(getErrorMessage(err, 'Top-up failed.'));
+      alert(getErrorMessage(err, 'Top-up failed.'));
     } finally {
       setTopUpLoading(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this virtual card?')) return;
+    if (!window.confirm('Delete this virtual card?')) return;
     try {
       await api.delete(`/cards/virtual-cards/${id}/`);
       fetchData();
     } catch (err) {
-      alert(getErrorMessage(err, 'Failed to delete card.'));
+      alert(getErrorMessage(err, 'Failed to delete.'));
     }
   };
 
-  // --- UI HELPERS ---
-  const formatCardNumber = (num) => {
-    return num ? num.replace(/(\d{4})/g, '$1 ').trim() : '**** **** **** ****';
-  };
-
-  const formatExpiry = (dateString) => {
-    if (!dateString) return 'MM/YY';
-    const date = new Date(dateString);
-    return `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear().toString().slice(-2)}`;
-  };
-
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <div>
-          <button 
-            onClick={() => navigate('/dashboard')}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', marginBottom: '10px' }}
+    <PageTransition>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-display font-heading text-white">Virtual cards</h1>
+            <p className="text-elite-text-muted text-sm mt-0.5">Manage and top up your cards</p>
+          </div>
+          <Button
+            variant="primary"
+            size="lg"
+            leftIcon={<Plus size={20} />}
+            onClick={() => setShowCreateModal(true)}
+            disabled={cards.length >= 3}
           >
-            ← Back to Dashboard
-          </button>
-          <h1 style={{ margin: 0, color: '#1f2937' }}>Virtual Cards</h1>
+            {cards.length >= 3 ? 'Limit reached (max 3)' : 'Create new card'}
+          </Button>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          disabled={cards.length >= 3}
-          style={{
-            padding: '12px 24px',
-            background: cards.length >= 3 ? '#9ca3af' : '#2563eb',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: cards.length >= 3 ? 'not-allowed' : 'pointer',
-            fontSize: '16px',
-            fontWeight: '500'
-          }}
-        >
-          {cards.length >= 3 ? 'Limit Reached (Max 3)' : '+ Create New Card'}
-        </button>
+
+        {error && (
+          <div className="p-4 rounded-2xl border border-danger/30 bg-danger/10 text-danger text-sm">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2].map((i) => (
+              <div key={i} className="rounded-2xl border border-elite-border p-6 h-56 skeleton-shimmer" />
+            ))}
+          </div>
+        ) : cards.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gold/10 text-gold mb-4">
+                <Sparkles size={32} />
+              </div>
+              <h3 className="text-xl font-heading text-white mb-2">No virtual cards yet</h3>
+              <p className="text-elite-text-muted mb-6 max-w-sm mx-auto">Create a virtual card for secure online payments.</p>
+              <Button variant="primary" leftIcon={<Plus size={18} />} onClick={() => setShowCreateModal(true)}>
+                Create card
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {cards.map((card) => (
+              <VirtualCardItem
+                key={card.id}
+                card={card}
+                onTopUp={(c) => { setSelectedCard(c); setShowTopUpModal(true); }}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px' }}>Loading cards...</div>
-      ) : error ? (
-        <div style={{ color: 'red', padding: '20px' }}>{error}</div>
-      ) : cards.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px', background: 'white', borderRadius: '12px' }}>
-          <h3>No Virtual Cards Yet</h3>
-          <p>Create a virtual card to make secure online payments.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '30px' }}>
-          {cards.map(card => (
-            <div key={card.id} style={{
-              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-              borderRadius: '16px',
-              padding: '25px',
-              color: 'white',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-              position: 'relative',
-              overflow: 'hidden'
-            }}>
-              {/* Card Design Details */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px' }}>
-                <span style={{ fontStyle: 'italic', fontWeight: 'bold', fontSize: '20px' }}>NextGen Bank</span>
-                <span style={{ background: 'rgba(255,255,255,0.2)', padding: '4px 12px', borderRadius: '20px', fontSize: '12px' }}>
-                  {card.status.toUpperCase()}
-                </span>
-              </div>
-
-              <div style={{ fontSize: '22px', letterSpacing: '2px', marginBottom: '25px', fontFamily: 'monospace' }}>
-                {formatCardNumber(card.card_number)}
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ fontSize: '10px', opacity: 0.7, textTransform: 'uppercase' }}>Expires</div>
-                  <div style={{ fontSize: '14px' }}>{formatExpiry(card.expiry_date)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '10px', opacity: 0.7, textTransform: 'uppercase' }}>CVV</div>
-                  <div style={{ fontSize: '14px' }}>{card.cvv}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '10px', opacity: 0.7, textTransform: 'uppercase' }}>Balance</div>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold' }}>${card.balance}</div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: '10px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                <button 
-                  onClick={() => { setSelectedCard(card); setShowTopUpModal(true); }}
-                  style={{ flex: 1, padding: '8px', background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  Top Up
-                </button>
-                <button 
-                  onClick={() => handleDelete(card.id)}
-                  style={{ flex: 1, padding: '8px', background: 'rgba(239,68,68,0.3)', border: 'none', color: '#fca5a5', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* CREATE MODAL */}
+      {/* Create modal */}
       {showCreateModal && (
-        <div style={modalOverlayStyle}>
-          <div style={modalContentStyle}>
-            <h2>Create Virtual Card</h2>
-            <p style={{ color: '#666', fontSize: '14px' }}>Linked to your main account</p>
-            <form onSubmit={handleCreateCard}>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Source Account Number</label>
-                <input
-                  type="text"
-                  required
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  placeholder="Enter your account number"
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }}
-                />
-                <small style={{ color: '#666' }}>Found in Dashboard or Profile</small>
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="submit" disabled={createLoading} style={primaryButtonStyle}>
-                  {createLoading ? 'Creating...' : 'Create Card'}
-                </button>
-                <button type="button" onClick={() => setShowCreateModal(false)} style={secondaryButtonStyle}>
-                  Cancel
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass-card rounded-3xl p-8 w-full max-w-md"
+          >
+            <h2 className="text-xl font-heading text-white mb-1">Create virtual card</h2>
+            <p className="text-elite-text-muted text-sm mb-6">Linked to your main account</p>
+            <form onSubmit={handleCreateCard} className="space-y-4">
+              <Input
+                label="Source account number"
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+                placeholder="Account number"
+                required
+              />
+              <div className="flex gap-3">
+                <Button type="submit" variant="primary" className="flex-1" loading={createLoading}>Create card</Button>
+                <Button type="button" variant="ghost" onClick={() => setShowCreateModal(false)}>Cancel</Button>
               </div>
             </form>
-          </div>
+          </motion.div>
         </div>
       )}
 
-      {/* TOP UP MODAL */}
-      {showTopUpModal && (
-        <div style={modalOverlayStyle}>
-          <div style={modalContentStyle}>
-            <h2>Top Up Card</h2>
-            <p style={{ color: '#666', fontSize: '14px' }}>
-              Add funds from your main account to card ending in <strong>{selectedCard?.card_number.slice(-4)}</strong>
+      {/* Top up modal */}
+      {showTopUpModal && selectedCard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass-card rounded-3xl p-8 w-full max-w-md"
+          >
+            <h2 className="text-xl font-heading text-white mb-1">Top up card</h2>
+            <p className="text-elite-text-muted text-sm mb-6">
+              Add funds to card ending in <strong className="text-white">{selectedCard.card_number?.slice(-4)}</strong>
             </p>
-            <form onSubmit={handleTopUp}>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '5px' }}>Amount ($)</label>
+            <form onSubmit={handleTopUp} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-elite-text-muted mb-1.5">Amount ($)</label>
                 <input
                   type="number"
                   step="0.01"
                   required
                   value={topUpAmount}
                   onChange={(e) => setTopUpAmount(e.target.value)}
-                  placeholder="0.00"
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }}
+                  className="w-full px-4 py-4 rounded-xl bg-elite-surface border border-elite-border text-2xl font-heading text-white focus:border-gold focus:ring-2 focus:ring-gold/20"
                 />
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="submit" disabled={topUpLoading} style={primaryButtonStyle}>
-                  {topUpLoading ? 'Processing...' : 'Top Up Now'}
-                </button>
-                <button type="button" onClick={() => setShowTopUpModal(false)} style={secondaryButtonStyle}>
-                  Cancel
-                </button>
+              <div className="flex gap-3">
+                <Button type="submit" variant="success" className="flex-1" loading={topUpLoading}>Top up now</Button>
+                <Button type="button" variant="ghost" onClick={() => { setShowTopUpModal(false); setSelectedCard(null); }}>Cancel</Button>
               </div>
             </form>
-          </div>
+          </motion.div>
         </div>
       )}
-    </div>
+    </PageTransition>
   );
-};
-
-// Styles
-const modalOverlayStyle = {
-  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-  background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
-};
-
-const modalContentStyle = {
-  background: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '400px'
-};
-
-const primaryButtonStyle = {
-  flex: 1, padding: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500'
-};
-
-const secondaryButtonStyle = {
-  flex: 1, padding: '10px', background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500'
-};
-
-export default VirtualCards;
+}

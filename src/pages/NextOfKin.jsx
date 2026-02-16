@@ -1,86 +1,54 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from '@mantine/form';
-import {
-  Container,
-  Title,
-  TextInput,
-  Button,
-  Group,
-  Select,
-  Paper,
-  Text,
-  LoadingOverlay,
-  SimpleGrid,
-  Box,
-  Card,
-  ActionIcon,
-  Drawer,
-  Stack,
-  Badge,
-  Alert,
-} from '@mantine/core';
-import {
-  IconPlus,
-  IconTrash,
-  IconEdit,
-  IconArrowLeft,
-  IconUserHeart,
-  IconPhone,
-  IconMapPin,
-  IconMail,
-  IconAlertCircle,
-} from '@tabler/icons-react';
-import { useDisclosure } from '@mantine/hooks';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Plus, Pencil, Trash2, Phone, Mail, MapPin, Users } from 'lucide-react';
 import api from '../services/api';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Card, CardContent } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
+import { PageTransition } from '../components/layout/PageTransition';
 
-const NextOfKin = () => {
+const initialForm = {
+  title: '',
+  first_name: '',
+  last_name: '',
+  other_names: '',
+  gender: '',
+  date_of_birth: '',
+  relationship: '',
+  phone_number: '',
+  email_address: '',
+  address: '',
+  city: '',
+  country: '',
+};
+
+export default function NextOfKin() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const [list, setList] = useState([]);
   const [listLoading, setListLoading] = useState(true);
-  const [nextOfKinList, setNextOfKinList] = useState([]);
   const [error, setError] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  
-  // Controls the Form Drawer
-  const [opened, { open, close }] = useDisclosure(false);
+  const [form, setForm] = useState(initialForm);
+  const [formErrors, setFormErrors] = useState({});
+  const [loading, setLoading] = useState(false);
 
-  const form = useForm({
-    initialValues: {
-      title: '',
-      first_name: '',
-      last_name: '',
-      other_names: '',
-      gender: '',
-      date_of_birth: '',
-      relationship: '',
-      phone_number: '',
-      email_address: '',
-      address: '',
-      city: '',
-      country: '',
-    },
-    validate: {
-      first_name: (value) => (value.length < 2 ? 'First name is too short' : null),
-      last_name: (value) => (value.length < 2 ? 'Last name is too short' : null),
-      relationship: (value) => (value ? null : 'Relationship is required'),
-      phone_number: (value) => (value.length < 5 ? 'Invalid phone number' : null),
-      email_address: (value) => (/^\S+@\S+$/.test(value) ? null : 'Invalid email'),
-    },
-  });
-
-  useEffect(() => {
-    fetchNextOfKin();
-  }, []);
+  const setField = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setFormErrors((prev) => ({ ...prev, [key]: null }));
+  };
 
   const fetchNextOfKin = async () => {
     setListLoading(true);
     try {
       const response = await api.get('/profiles/my-profile/next-of-kin/');
       let data = response.data;
-      if (data && data.next_of_kin) data = data.next_of_kin;
-      const list = data.results || (Array.isArray(data) ? data : []);
-      setNextOfKinList(list);
+      if (data?.next_of_kin) data = data.next_of_kin;
+      const items = data?.results || (Array.isArray(data) ? data : []);
+      setList(items);
+      setError(null);
     } catch (err) {
       console.error(err);
       setError('Failed to load contacts.');
@@ -89,35 +57,35 @@ const NextOfKin = () => {
     }
   };
 
-  const handleSubmit = async (values) => {
+  useEffect(() => {
+    fetchNextOfKin();
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setLoading(true);
     setError(null);
+    setFormErrors({});
     try {
       if (editingId) {
-        await api.put(`/profiles/my-profile/next-of-kin/${editingId}/`, values);
+        await api.put(`/profiles/my-profile/next-of-kin/${editingId}/`, form);
       } else {
-        await api.post('/profiles/my-profile/next-of-kin/', values);
+        await api.post('/profiles/my-profile/next-of-kin/', form);
       }
       await fetchNextOfKin();
-      handleCloseDrawer();
+      closeDrawer();
     } catch (err) {
-      console.error(err);
-      // Extract backend errors if available
-      const backendErrors = err.response?.data;
-      if (backendErrors && typeof backendErrors === 'object') {
-        // Map backend field errors to form
+      const backend = err.response?.data;
+      if (backend && typeof backend === 'object') {
         const fieldErrors = {};
-        Object.keys(backendErrors).forEach((key) => {
-           // Handle specific field errors or general errors
-           if (key in values) {
-             fieldErrors[key] = Array.isArray(backendErrors[key]) ? backendErrors[key][0] : backendErrors[key];
-           }
+        Object.keys(backend).forEach((key) => {
+          if (key in form) {
+            fieldErrors[key] = Array.isArray(backend[key]) ? backend[key][0] : backend[key];
+          }
         });
-        form.setErrors(fieldErrors);
-        
-        // General error message if needed
-        if (backendErrors.detail) setError(backendErrors.detail);
-        else if (!Object.keys(fieldErrors).length) setError('Failed to save information.');
+        setFormErrors(fieldErrors);
+        if (backend.detail) setError(backend.detail);
+        else if (Object.keys(fieldErrors).length === 0) setError('Failed to save.');
       } else {
         setError('An unexpected error occurred.');
       }
@@ -126,219 +94,229 @@ const NextOfKin = () => {
     }
   };
 
-  const handleEdit = (kin) => {
-    setEditingId(kin.id);
-    form.setValues({
-      title: kin.title || '',
-      first_name: kin.first_name || '',
-      last_name: kin.last_name || '',
-      other_names: kin.other_names || '',
-      gender: kin.gender || '',
-      date_of_birth: kin.date_of_birth || '',
-      relationship: kin.relationship || '',
-      phone_number: kin.phone_number || '',
-      email_address: kin.email_address || '',
-      address: kin.address || '',
-      city: kin.city || '',
-      country: kin.country || '',
-    });
-    open();
+  const openDrawer = (kin = null) => {
+    if (kin) {
+      setEditingId(kin.id);
+      setForm({
+        title: kin.title || '',
+        first_name: kin.first_name || '',
+        last_name: kin.last_name || '',
+        other_names: kin.other_names || '',
+        gender: kin.gender || '',
+        date_of_birth: kin.date_of_birth || '',
+        relationship: kin.relationship || '',
+        phone_number: kin.phone_number || '',
+        email_address: kin.email_address || '',
+        address: kin.address || '',
+        city: kin.city || '',
+        country: kin.country || '',
+      });
+    } else {
+      setEditingId(null);
+      setForm(initialForm);
+    }
+    setError(null);
+    setFormErrors({});
+    setDrawerOpen(true);
+  };
+
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setEditingId(null);
+    setForm(initialForm);
+    setFormErrors({});
+    setError(null);
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this contact?')) return;
+    if (!window.confirm('Delete this contact?')) return;
     try {
       await api.delete(`/profiles/my-profile/next-of-kin/${id}/`);
       fetchNextOfKin();
     } catch (err) {
-      console.error(err);
       setError('Failed to delete contact.');
     }
   };
 
-  const handleCloseDrawer = () => {
-    close();
-    setEditingId(null);
-    form.reset();
-    setError(null);
-  };
+  const titleOptions = ['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Prof'];
+  const genderOptions = ['Male', 'Female', 'Other'];
 
   return (
-    <Box bg="gray.0" mih="100vh" py="xl">
-      <Container size="lg">
-        {/* Header Section */}
-        <Group justify="space-between" mb="lg">
-          <Button 
-            variant="subtle" 
-            color="gray" 
-            leftSection={<IconArrowLeft size={16} />}
+    <PageTransition>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <button
             onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-2 text-elite-text-muted hover:text-white transition-colors"
           >
-            Dashboard
+            <ArrowLeft size={20} /> Dashboard
+          </button>
+          <Button variant="primary" leftIcon={<Plus size={18} />} onClick={() => openDrawer()}>
+            Add contact
           </Button>
-          <Button 
-            leftSection={<IconPlus size={16} />} 
-            onClick={() => { setEditingId(null); form.reset(); open(); }}
-          >
-            Add Contact
-          </Button>
-        </Group>
+        </div>
 
-        <Title order={2} mb="xs">Next of Kin</Title>
-        <Text c="dimmed" mb="xl">Manage your emergency contacts and beneficiaries.</Text>
+        <div>
+          <h1 className="text-2xl font-display font-heading text-white">Next of kin</h1>
+          <p className="text-elite-text-muted text-sm mt-0.5">Manage emergency contacts and beneficiaries.</p>
+        </div>
 
-        {error && <Alert color="red" icon={<IconAlertCircle />} mb="lg">{error}</Alert>}
+        {error && !drawerOpen && (
+          <div className="p-4 rounded-2xl border border-danger/30 bg-danger/10 text-danger text-sm">
+            {error}
+          </div>
+        )}
 
-        {/* List View */}
-        <Box pos="relative" minHeight={200}>
-          <LoadingOverlay visible={listLoading} overlayProps={{ radius: 'sm', blur: 2 }} />
-          
-          {nextOfKinList.length === 0 && !listLoading ? (
-             <Paper p="xl" withBorder ta="center" bg="gray.0">
-               <IconUserHeart size={48} color="#adb5bd" style={{ marginBottom: 15 }} />
-               <Text c="dimmed">No contacts added yet.</Text>
-               <Button variant="light" mt="md" onClick={open}>Add your first contact</Button>
-             </Paper>
-          ) : (
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-              {nextOfKinList.map((kin) => (
-                <Card key={kin.id} shadow="sm" padding="lg" radius="md" withBorder>
-                  <Group justify="space-between" mb="xs">
-                    <Badge color="blue" variant="light">{kin.relationship}</Badge>
-                    <Group gap="xs">
-                      <ActionIcon variant="subtle" color="blue" onClick={() => handleEdit(kin)}>
-                        <IconEdit size={16} />
-                      </ActionIcon>
-                      <ActionIcon variant="subtle" color="red" onClick={() => handleDelete(kin.id)}>
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    </Group>
-                  </Group>
-
-                  <Text fw={600} size="lg" mt="xs">
-                    {kin.title} {kin.first_name} {kin.last_name}
-                  </Text>
-                  <Text size="sm" c="dimmed" mb="md">
-                    {kin.other_names}
-                  </Text>
-
-                  <Stack gap="xs">
-                    <Group gap="xs">
-                      <IconPhone size={14} color="gray" />
-                      <Text size="sm">{kin.phone_number}</Text>
-                    </Group>
-                    <Group gap="xs">
-                      <IconMail size={14} color="gray" />
-                      <Text size="sm" style={{ wordBreak: 'break-all' }}>{kin.email_address}</Text>
-                    </Group>
-                    <Group gap="xs" align="flex-start">
-                      <IconMapPin size={14} color="gray" style={{ marginTop: 4 }} />
-                      <Text size="sm">
-                        {kin.address}, {kin.city}, {kin.country}
-                      </Text>
-                    </Group>
-                  </Stack>
-                </Card>
-              ))}
-            </SimpleGrid>
-          )}
-        </Box>
-
-        {/* Add/Edit Drawer Form */}
-        <Drawer
-          opened={opened}
-          onClose={handleCloseDrawer}
-          title={<Text fw={600} size="lg">{editingId ? 'Edit Contact' : 'New Contact'}</Text>}
-          position="right"
-          size="md"
-          padding="xl"
-        >
-          <form onSubmit={form.onSubmit(handleSubmit)}>
-            <Stack gap="md">
-              <Group grow>
-                <Select
-                  label="Title"
-                  data={['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Prof']}
-                  {...form.getInputProps('title')}
-                />
-                <Select
-                  label="Gender"
-                  data={['Male', 'Female', 'Other']}
-                  {...form.getInputProps('gender')}
-                />
-              </Group>
-
-              <Group grow>
-                <TextInput
-                  withAsterisk
-                  label="First Name"
-                  {...form.getInputProps('first_name')}
-                />
-                <TextInput
-                  withAsterisk
-                  label="Last Name"
-                  {...form.getInputProps('last_name')}
-                />
-              </Group>
-
-              <TextInput
-                label="Other Names"
-                {...form.getInputProps('other_names')}
-              />
-
-              <Group grow>
-                <TextInput
-                  withAsterisk
-                  label="Relationship"
-                  placeholder="e.g. Spouse"
-                  {...form.getInputProps('relationship')}
-                />
-                <TextInput
-                  type="date"
-                  label="Date of Birth"
-                  {...form.getInputProps('date_of_birth')}
-                />
-              </Group>
-
-              <TextInput
-                withAsterisk
-                label="Phone Number"
-                placeholder="+1 234 567 890"
-                {...form.getInputProps('phone_number')}
-              />
-
-              <TextInput
-                withAsterisk
-                label="Email Address"
-                placeholder="email@example.com"
-                {...form.getInputProps('email_address')}
-              />
-
-              <TextInput
-                label="Address"
-                {...form.getInputProps('address')}
-              />
-
-              <Group grow>
-                <TextInput
-                  label="City"
-                  {...form.getInputProps('city')}
-                />
-                <TextInput
-                  label="Country"
-                  {...form.getInputProps('country')}
-                />
-              </Group>
-
-              <Button type="submit" mt="xl" loading={loading} fullWidth>
-                {editingId ? 'Save Changes' : 'Create Contact'}
+        {listLoading ? (
+          <div className="flex items-center justify-center py-24">
+            <div className="w-12 h-12 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : list.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gold/10 text-gold mb-4">
+                <Users size={32} />
+              </div>
+              <p className="text-elite-text-muted mb-6">No contacts added yet.</p>
+              <Button variant="primary" onClick={() => openDrawer()}>
+                Add your first contact
               </Button>
-            </Stack>
-          </form>
-        </Drawer>
-      </Container>
-    </Box>
-  );
-};
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {list.map((kin) => (
+              <Card key={kin.id} hover>
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between gap-2 mb-4">
+                    <Badge variant="info">{kin.relationship}</Badge>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => openDrawer(kin)}
+                        className="p-2 rounded-lg text-elite-text-muted hover:text-gold hover:bg-white/5 transition-colors"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(kin.id)}
+                        className="p-2 rounded-lg text-elite-text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-heading text-white">
+                    {kin.title} {kin.first_name} {kin.last_name}
+                  </h3>
+                  {kin.other_names && (
+                    <p className="text-sm text-elite-text-muted mb-3">{kin.other_names}</p>
+                  )}
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2 text-elite-text-muted">
+                      <Phone size={14} className="flex-shrink-0" />
+                      <span>{kin.phone_number}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-elite-text-muted">
+                      <Mail size={14} className="flex-shrink-0" />
+                      <span className="break-all">{kin.email_address}</span>
+                    </div>
+                    {(kin.address || kin.city || kin.country) && (
+                      <div className="flex items-start gap-2 text-elite-text-muted">
+                        <MapPin size={14} className="flex-shrink-0 mt-0.5" />
+                        <span>{[kin.address, kin.city, kin.country].filter(Boolean).join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
-export default NextOfKin;
+        {/* Drawer */}
+        <AnimatePresence>
+          {drawerOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+                onClick={closeDrawer}
+              />
+              <motion.div
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'tween', duration: 0.25 }}
+                className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-elite-bg border-l border-elite-border z-50 flex flex-col shadow-2xl"
+              >
+                <div className="p-6 border-b border-elite-border flex items-center justify-between">
+                  <h2 className="text-xl font-heading text-white">
+                    {editingId ? 'Edit contact' : 'New contact'}
+                  </h2>
+                  <button
+                    onClick={closeDrawer}
+                    className="p-2 rounded-xl text-elite-text-muted hover:text-white hover:bg-white/5"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {error && (
+                    <div className="p-4 rounded-xl border border-danger/30 bg-danger/10 text-danger text-sm">
+                      {error}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-elite-text-muted mb-1.5">Title</label>
+                      <select
+                        value={form.title}
+                        onChange={(e) => setField('title', e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl bg-elite-surface border border-elite-border text-white focus:border-gold focus:ring-2 focus:ring-gold/20 focus:outline-none"
+                      >
+                        <option value="">Select</option>
+                        {titleOptions.map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-elite-text-muted mb-1.5">Gender</label>
+                      <select
+                        value={form.gender}
+                        onChange={(e) => setField('gender', e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl bg-elite-surface border border-elite-border text-white focus:border-gold focus:ring-2 focus:ring-gold/20 focus:outline-none"
+                      >
+                        <option value="">Select</option>
+                        {genderOptions.map((o) => (
+                          <option key={o} value={o.toLowerCase()}>{o}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <Input label="First name" value={form.first_name} onChange={(e) => setField('first_name', e.target.value)} error={formErrors.first_name} required />
+                  <Input label="Last name" value={form.last_name} onChange={(e) => setField('last_name', e.target.value)} error={formErrors.last_name} required />
+                  <Input label="Other names" value={form.other_names} onChange={(e) => setField('other_names', e.target.value)} />
+                  <Input label="Relationship" value={form.relationship} onChange={(e) => setField('relationship', e.target.value)} error={formErrors.relationship} placeholder="e.g. Spouse" required />
+                  <Input label="Date of birth" type="date" value={form.date_of_birth} onChange={(e) => setField('date_of_birth', e.target.value)} />
+                  <Input label="Phone number" value={form.phone_number} onChange={(e) => setField('phone_number', e.target.value)} error={formErrors.phone_number} required />
+                  <Input label="Email address" type="email" value={form.email_address} onChange={(e) => setField('email_address', e.target.value)} error={formErrors.email_address} required />
+                  <Input label="Address" value={form.address} onChange={(e) => setField('address', e.target.value)} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input label="City" value={form.city} onChange={(e) => setField('city', e.target.value)} />
+                    <Input label="Country" value={form.country} onChange={(e) => setField('country', e.target.value)} />
+                  </div>
+                  <Button type="submit" variant="primary" size="lg" className="w-full mt-6" loading={loading}>
+                    {editingId ? 'Save changes' : 'Create contact'}
+                  </Button>
+                </form>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </div>
+    </PageTransition>
+  );
+}

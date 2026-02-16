@@ -2,35 +2,25 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import {
-  Container,
-  Paper,
-  Title,
-  Text,
-  TextInput,
-  PasswordInput,
-  Select,
-  Button,
-  Stack,
-  Alert,
-  Box,
-} from '@mantine/core';
-import api from '../services/api';
-
-const ROYAL = {
-  surface: 'rgba(30, 41, 59, 0.7)',
-  border: 'rgba(212, 175, 55, 0.25)',
-};
+import { Shield, Lock, Zap } from 'lucide-react';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 
 const SECURITY_OPTIONS = [
   { value: '', label: 'Select a question...' },
-  { value: 'maiden_name', label: "What is your mother's maiden name?" },
-  { value: 'favourite_color', label: 'What is your favourite color?' },
-  { value: 'birth_city', label: 'What is the city where you were born?' },
-  { value: 'childhood_friend', label: 'What is the name of your childhood best friend?' },
+  { value: 'maiden_name', label: "Mother's maiden name?" },
+  { value: 'favourite_color', label: 'Favourite color?' },
+  { value: 'birth_city', label: 'City of birth?' },
+  { value: 'childhood_friend', label: 'Childhood best friend?' },
 ];
 
-const Register = () => {
+const trustBadges = [
+  { icon: Shield, text: 'Bank-grade security' },
+  { icon: Lock, text: '256-bit encryption' },
+  { icon: Zap, text: 'Instant verification' },
+];
+
+export default function Register() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -52,24 +42,18 @@ const Register = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSelectChange = (value) => {
-    setFormData((prev) => ({ ...prev, security_question: value ?? '' }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-
     if (formData.password !== formData.re_password) {
       setError('Passwords do not match');
       return;
     }
-
     setLoading(true);
     try {
       await register(formData);
-      setSuccess('Registration successful! Please check your email to activate your account.');
+      setSuccess('Registration successful! Check your email (and spam) to activate.');
       setTimeout(() => navigate('/login'), 3000);
     } catch (err) {
       if (err.response?.data) {
@@ -81,167 +65,155 @@ const Register = () => {
         else if (data.non_field_errors) setError(data.non_field_errors[0]);
         else if (data.detail) setError(data.detail);
         else {
-          const firstErrorKey = Object.keys(data)[0];
-          if (firstErrorKey) {
-            const errorMsg = Array.isArray(data[firstErrorKey])
-              ? data[firstErrorKey][0]
-              : data[firstErrorKey];
-            const formattedKey = firstErrorKey
-              .replace('_', ' ')
-              .replace(/\b\w/g, (c) => c.toUpperCase());
-            setError(`${formattedKey}: ${errorMsg}`);
-          } else setError('Registration failed. Please try again.');
+          const firstKey = Object.keys(data)[0];
+          if (firstKey) {
+            const msg = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
+            const key = firstKey.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+            setError(`${key}: ${msg}`);
+          } else setError('Registration failed.');
         }
-      } else setError('Network error. Please try again later.');
+      } else setError('Network error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const cardVariants = {
-    hidden: { opacity: 0, y: 24 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] },
-    },
-  };
-
   return (
-    <Box py={50} style={{ minHeight: '100vh' }}>
-      <Container size="xs">
-        <motion.div initial="hidden" animate="visible" variants={cardVariants}>
-          <Paper
-            p="xl"
-            radius="lg"
-            style={{
-              background: ROYAL.surface,
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              border: `1px solid ${ROYAL.border}`,
-            }}
-          >
-            <Title order={1} ta="center" mb="xs" fw={600} c="gold.4">
-              Create Account
-            </Title>
-            <Text ta="center" c="dimmed" size="sm" mb="lg">
-              Join NextGen Bank
-            </Text>
+    <div className="min-h-screen bg-elite-black relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-elite-bg via-elite-surface to-elite-black" />
+      <div className="absolute inset-0 bg-gradient-radial opacity-60" />
+      <div className="absolute top-0 right-0 w-[600px] h-[500px] bg-gold/5 rounded-full blur-[100px] animate-gradient" />
+
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-12">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-md"
+        >
+          <div className="glass-card rounded-3xl p-8 lg:p-10 shadow-2xl">
+            <div className="text-center mb-6">
+              <h1 className="text-2xl lg:text-3xl font-display font-heading text-white mb-1">
+                Create <span className="text-gold">Account</span>
+              </h1>
+              <p className="text-elite-text-muted text-sm">Join NextGen Bank</p>
+            </div>
 
             {error && (
-              <Alert color="red" variant="light" radius="md" mb="lg">
+              <div className="mb-6 p-4 rounded-xl bg-danger/10 border border-danger/30 text-danger text-sm">
                 {error}
-              </Alert>
+              </div>
             )}
             {success && (
-              <Alert color="emerald" variant="light" radius="md" mb="lg">
+              <div className="mb-6 p-4 rounded-xl bg-emerald/10 border border-emerald/30 text-emerald text-sm">
                 {success}
-              </Alert>
+              </div>
             )}
 
-            <form onSubmit={handleSubmit}>
-              <Stack gap="md">
-                <TextInput
-                  label="First Name"
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="First name"
                   name="first_name"
                   value={formData.first_name}
                   onChange={handleChange}
                   required
-                  size="md"
-                  radius="md"
                 />
-                <TextInput
-                  label="Last Name"
+                <Input
+                  label="Last name"
                   name="last_name"
                   value={formData.last_name}
                   onChange={handleChange}
                   required
-                  size="md"
-                  radius="md"
                 />
-                <TextInput
-                  label="Email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
+              </div>
+              <Input
+                label="Email"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+              <Input
+                label="ID number (numbers only)"
+                name="id_no"
+                type="number"
+                value={formData.id_no}
+                onChange={handleChange}
+                required
+              />
+              <div>
+                <label className="block text-sm font-medium text-elite-text-muted mb-1.5">
+                  Security question
+                </label>
+                <select
+                  name="security_question"
+                  value={formData.security_question}
                   onChange={handleChange}
                   required
-                  size="md"
-                  radius="md"
-                />
-                <TextInput
-                  label="ID Number (numbers only)"
-                  name="id_no"
-                  type="number"
-                  value={formData.id_no}
-                  onChange={handleChange}
-                  required
-                  size="md"
-                  radius="md"
-                />
-                <Select
-                  label="Security Question"
-                  placeholder="Select a question..."
-                  data={SECURITY_OPTIONS}
-                  value={formData.security_question || null}
-                  onChange={handleSelectChange}
-                  required
-                  size="md"
-                  radius="md"
-                />
-                <TextInput
-                  label="Security Answer"
-                  name="security_answer"
-                  value={formData.security_answer}
-                  onChange={handleChange}
-                  required
-                  size="md"
-                  radius="md"
-                />
-                <PasswordInput
-                  label="Password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                  size="md"
-                  radius="md"
-                />
-                <PasswordInput
-                  label="Confirm Password"
-                  name="re_password"
-                  value={formData.re_password}
-                  onChange={handleChange}
-                  required
-                  size="md"
-                  radius="md"
-                />
-                <Button
-                  type="submit"
-                  fullWidth
-                  size="md"
-                  loading={loading}
-                  color="gold"
-                  variant="filled"
-                  radius="md"
-                  style={{ boxShadow: '0 0 20px rgba(212, 175, 55, 0.25)' }}
+                  className="w-full px-4 py-3 rounded-xl bg-elite-surface border border-elite-border text-white focus:border-gold focus:ring-2 focus:ring-gold/20 focus:outline-none"
                 >
-                  {loading ? 'Registering...' : 'Register'}
-                </Button>
-              </Stack>
+                  {SECURITY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Input
+                label="Security answer"
+                name="security_answer"
+                value={formData.security_answer}
+                onChange={handleChange}
+                required
+              />
+              <Input
+                label="Password"
+                name="password"
+                type="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+              />
+              <Input
+                label="Confirm password"
+                name="re_password"
+                type="password"
+                value={formData.re_password}
+                onChange={handleChange}
+                required
+              />
+              <Button type="submit" variant="primary" size="lg" className="w-full" loading={loading}>
+                {loading ? 'Registering...' : 'Register'}
+              </Button>
             </form>
 
-            <Text ta="center" mt="lg" size="sm" c="dimmed">
+            <p className="text-center text-sm text-elite-text-muted mt-6">
               Already have an account?{' '}
-              <Link to="/login" style={{ color: 'var(--mantine-color-gold-4)' }}>
-                Login here
+              <Link to="/login" className="text-gold hover:text-gold-light transition-colors">
+                Login
               </Link>
-            </Text>
-          </Paper>
-        </motion.div>
-      </Container>
-    </Box>
-  );
-};
+            </p>
+          </div>
 
-export default Register;
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mt-8 flex flex-wrap justify-center gap-6"
+          >
+            {trustBadges.map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-2 text-elite-text-muted text-sm">
+                <span className="text-gold/80">
+                  <Icon size={18} />
+                </span>
+                <span>{text}</span>
+              </div>
+            ))}
+          </motion.div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}

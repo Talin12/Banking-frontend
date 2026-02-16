@@ -1,82 +1,86 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from '@mantine/form';
-import {
-  Container,
-  Title,
-  TextInput,
-  Button,
-  Group,
-  Select,
-  Paper,
-  Text,
-  LoadingOverlay,
-  SimpleGrid,
-  Box,
-  Tabs,
-  Alert,
-} from '@mantine/core';
-import {
-  IconDeviceFloppy,
-  IconArrowLeft,
-  IconUser,
-  IconBriefcase,
-  IconId,
-  IconMapPin,
-} from '@tabler/icons-react';
+import { motion } from 'framer-motion';
+import { ArrowLeft, User, MapPin, IdCard, Briefcase, Save } from 'lucide-react';
 import api from '../services/api';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Card, CardContent, CardHeader } from '../components/ui/Card';
+import { PageTransition } from '../components/layout/PageTransition';
 
-const EditProfile = () => {
+const initialValues = {
+  title: '',
+  first_name: '',
+  middle_name: '',
+  last_name: '',
+  gender: '',
+  date_of_birth: '',
+  marital_status: '',
+  phone_number: '',
+  address: '',
+  city: '',
+  country: '',
+  nationality: '',
+  country_of_birth: '',
+  place_of_birth: '',
+  means_of_identification: '',
+  passport_number: '',
+  id_issue_date: '',
+  id_expiry_date: '',
+  employment_status: '',
+  employer_name: '',
+  employer_address: '',
+  employer_city: '',
+  employer_state: '',
+  date_of_employment: '',
+  annual_income: '',
+  account_currency: '',
+  account_type: '',
+};
+
+const tabs = [
+  { id: 'personal', label: 'Personal', icon: User },
+  { id: 'contact', label: 'Contact', icon: MapPin },
+  { id: 'identity', label: 'Identity', icon: IdCard },
+  { id: 'employment', label: 'Employment', icon: Briefcase },
+];
+
+function SelectField({ label, value, onChange, options, required }) {
+  return (
+    <div>
+      {label && (
+        <label className="block text-sm font-medium text-elite-text-muted mb-1.5">
+          {label} {required && '*'}
+        </label>
+      )}
+      <select
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        className="w-full px-4 py-3 rounded-xl bg-elite-surface border border-elite-border text-white focus:border-gold focus:ring-2 focus:ring-gold/20 focus:outline-none"
+      >
+        <option value="">Select...</option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+export default function EditProfile() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('personal');
+  const [form, setForm] = useState(initialValues);
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const form = useForm({
-    initialValues: {
-      // Personal
-      title: '',
-      first_name: '',
-      middle_name: '',
-      last_name: '',
-      gender: '',
-      date_of_birth: '',
-      marital_status: '',
-      
-      // Contact
-      phone_number: '',
-      address: '',
-      city: '',
-      country: '',
-      
-      // Identification
-      nationality: '',
-      country_of_birth: '',
-      place_of_birth: '',
-      means_of_identification: '',
-      passport_number: '',
-      id_issue_date: '',
-      id_expiry_date: '',
-      
-      // Employment
-      employment_status: '',
-      employer_name: '',
-      employer_address: '',
-      employer_city: '',
-      employer_state: '',
-      date_of_employment: '',
-      annual_income: '',
-
-      // Account
-      account_currency: '',
-      account_type: '',
-    },
-    validate: {
-      first_name: (value) => (value?.length < 2 ? 'First name is too short' : null),
-      last_name: (value) => (value?.length < 2 ? 'Last name is too short' : null),
-      phone_number: (value) => (value?.length < 5 ? 'Invalid phone number' : null),
-    },
-  });
+  const setField = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => ({ ...prev, [key]: null }));
+  };
 
   useEffect(() => {
     fetchProfile();
@@ -86,293 +90,215 @@ const EditProfile = () => {
     try {
       const response = await api.get('/profiles/my-profile/');
       const data = response.data.profile?.data || response.data.profile || response.data || {};
-      
-      // Map backend fields to form, converting nulls to empty strings
-      const sanitizedData = {};
-      Object.keys(form.values).forEach(key => {
-        sanitizedData[key] = data[key] === null || data[key] === undefined ? '' : data[key];
+      const sanitized = {};
+      Object.keys(initialValues).forEach((key) => {
+        sanitized[key] = data[key] == null ? '' : data[key];
       });
-      
-      form.setValues(sanitizedData);
-    } catch (error) {
-      console.error('Failed to load profile', error);
-      setError('Could not load existing profile data.');
+      setForm(sanitized);
+    } catch (err) {
+      console.error(err);
+      setError('Could not load profile.');
     } finally {
       setFetchLoading(false);
     }
   };
 
-  const handleSubmit = async (values) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setLoading(true);
     setError(null);
+    setErrors({});
     try {
-      // Clean payload: Convert empty strings back to null for dates to avoid validation errors
-      const payload = { ...values };
-      const dateFields = ['date_of_birth', 'id_issue_date', 'id_expiry_date', 'date_of_employment'];
-      
-      Object.keys(payload).forEach(key => {
-        if (payload[key] === '') {
-          if (dateFields.includes(key)) {
-            payload[key] = null;
-          } 
-        }
+      const payload = { ...form };
+      ['date_of_birth', 'id_issue_date', 'id_expiry_date', 'date_of_employment'].forEach((key) => {
+        if (payload[key] === '') payload[key] = null;
       });
-
       await api.patch('/profiles/my-profile/', payload);
       navigate('/dashboard');
-    } catch (error) {
-      console.error('Failed to update profile', error);
-      const msg = error.response?.data?.message || error.response?.data?.detail || 'Failed to update profile.';
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.detail || 'Failed to update profile.';
       setError(msg);
-
-      if (error.response?.data) {
-         const backendErrors = error.response.data;
-         const formErrors = {};
-         
-         // Helper to handle nested error structures
-         const extractError = (err) => Array.isArray(err) ? err[0] : err;
-
-         if (backendErrors.errors) {
-            // Handle { errors: { field: [] } } format
-            Object.keys(backendErrors.errors).forEach(key => {
-                if(key in values) formErrors[key] = extractError(backendErrors.errors[key]);
-            });
-         } else {
-            // Handle { field: [] } format
-            Object.keys(backendErrors).forEach(key => {
-                if(key in values) formErrors[key] = extractError(backendErrors[key]);
-            });
-         }
-         
-         form.setErrors(formErrors);
+      const backend = err.response?.data;
+      if (backend && typeof backend === 'object') {
+        const formErrors = {};
+        const extract = (v) => (Array.isArray(v) ? v[0] : v);
+        if (backend.errors) {
+          Object.keys(backend.errors).forEach((key) => {
+            if (key in form) formErrors[key] = extract(backend.errors[key]);
+          });
+        } else {
+          Object.keys(backend).forEach((key) => {
+            if (key in form) formErrors[key] = extract(backend[key]);
+          });
+        }
+        setErrors(formErrors);
       }
     } finally {
       setLoading(false);
     }
   };
 
+  if (fetchLoading) {
+    return (
+      <PageTransition>
+        <div className="flex items-center justify-center py-24">
+          <div className="w-12 h-12 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+        </div>
+      </PageTransition>
+    );
+  }
+
   return (
-    <Box bg="gray.0" mih="100vh" py="xl">
-      <Container size="md">
-        <Button 
-          variant="subtle" 
-          color="gray" 
-          mb="md" 
-          leftSection={<IconArrowLeft size={16} />}
+    <PageTransition>
+      <div className="space-y-6">
+        <button
           onClick={() => navigate('/dashboard')}
+          className="flex items-center gap-2 text-elite-text-muted hover:text-white transition-colors"
         >
-          Back to Dashboard
-        </Button>
+          <ArrowLeft size={20} /> Back to Dashboard
+        </button>
 
-        <Paper shadow="sm" radius="md" p="xl" pos="relative">
-          <LoadingOverlay visible={fetchLoading || loading} overlayProps={{ radius: 'sm', blur: 2 }} />
-          
-          <Group mb="xl" justify="space-between">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <Title order={2}>Edit Profile</Title>
-              <Text c="dimmed" size="sm">
-                Update your personal and account information.
-              </Text>
+              <h1 className="text-2xl font-display font-heading text-white">Edit profile</h1>
+              <p className="text-elite-text-muted text-sm mt-0.5">Update your personal and account information.</p>
             </div>
-          </Group>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {error && (
+              <div className="mb-6 p-4 rounded-xl border border-danger/30 bg-danger/10 text-danger text-sm">
+                {error}
+              </div>
+            )}
 
-          {error && (
-            <Alert color="red" mb="lg" title="Error">
-              {error}
-            </Alert>
-          )}
+            <form onSubmit={handleSubmit}>
+              <div className="flex border-b border-elite-border gap-1 mb-6 overflow-x-auto">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === tab.id
+                        ? 'border-gold text-gold'
+                        : 'border-transparent text-elite-text-muted hover:text-white'
+                    }`}
+                  >
+                    <tab.icon size={18} /> {tab.label}
+                  </button>
+                ))}
+              </div>
 
-          <form onSubmit={form.onSubmit(handleSubmit)}>
-            <Tabs defaultValue="personal" variant="outline" radius="md">
-              <Tabs.List mb="lg">
-                <Tabs.Tab value="personal" leftSection={<IconUser size={16} />}>
-                  Personal
-                </Tabs.Tab>
-                <Tabs.Tab value="contact" leftSection={<IconMapPin size={16} />}>
-                  Contact
-                </Tabs.Tab>
-                <Tabs.Tab value="identity" leftSection={<IconId size={16} />}>
-                  Identity
-                </Tabs.Tab>
-                <Tabs.Tab value="employment" leftSection={<IconBriefcase size={16} />}>
-                  Employment
-                </Tabs.Tab>
-              </Tabs.List>
-
-              <Tabs.Panel value="personal">
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                  <Select
+              {activeTab === 'personal' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <SelectField
                     label="Title"
-                    data={[
+                    value={form.title}
+                    onChange={(v) => setField('title', v)}
+                    options={[
                       { value: 'mr', label: 'Mr' },
                       { value: 'mrs', label: 'Mrs' },
-                      { value: 'miss', label: 'Miss' }
+                      { value: 'miss', label: 'Miss' },
                     ]}
-                    {...form.getInputProps('title')}
                   />
-                  <Select
+                  <SelectField
                     label="Gender"
-                    data={[
+                    value={form.gender}
+                    onChange={(v) => setField('gender', v)}
+                    options={[
                       { value: 'male', label: 'Male' },
-                      { value: 'female', label: 'Female' }
+                      { value: 'female', label: 'Female' },
                     ]}
-                    {...form.getInputProps('gender')}
                   />
-                  <TextInput
-                    label="First Name"
-                    withAsterisk
-                    {...form.getInputProps('first_name')}
-                  />
-                  <TextInput
-                    label="Middle Name"
-                    {...form.getInputProps('middle_name')}
-                  />
-                  <TextInput
-                    label="Last Name"
-                    withAsterisk
-                    {...form.getInputProps('last_name')}
-                  />
-                  <TextInput
-                    type="date"
-                    label="Date of Birth"
-                    {...form.getInputProps('date_of_birth')}
-                  />
-                  <Select
-                    label="Marital Status"
-                    data={[
+                  <Input label="First name" value={form.first_name} onChange={(e) => setField('first_name', e.target.value)} error={errors.first_name} required />
+                  <Input label="Middle name" value={form.middle_name} onChange={(e) => setField('middle_name', e.target.value)} />
+                  <Input label="Last name" value={form.last_name} onChange={(e) => setField('last_name', e.target.value)} error={errors.last_name} required />
+                  <Input label="Date of birth" type="date" value={form.date_of_birth} onChange={(e) => setField('date_of_birth', e.target.value)} />
+                  <SelectField
+                    label="Marital status"
+                    value={form.marital_status}
+                    onChange={(v) => setField('marital_status', v)}
+                    options={[
                       { value: 'single', label: 'Single' },
                       { value: 'married', label: 'Married' },
                       { value: 'divorced', label: 'Divorced' },
                       { value: 'widowed', label: 'Widowed' },
-                      { value: 'separated', label: 'Separated' }
+                      { value: 'separated', label: 'Separated' },
                     ]}
-                    {...form.getInputProps('marital_status')}
                   />
-                </SimpleGrid>
-              </Tabs.Panel>
+                </div>
+              )}
 
-              <Tabs.Panel value="contact">
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                  <TextInput
-                    label="Phone Number"
-                    withAsterisk
-                    placeholder="+123456789"
-                    {...form.getInputProps('phone_number')}
-                  />
-                  <TextInput
-                    label="City"
-                    {...form.getInputProps('city')}
-                  />
-                   <TextInput
-                    label="Country"
-                    {...form.getInputProps('country')}
-                  />
-                  <TextInput
-                    label="Address"
-                    {...form.getInputProps('address')}
-                    style={{ gridColumn: 'span 2' }} 
-                  />
-                </SimpleGrid>
-              </Tabs.Panel>
+              {activeTab === 'contact' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input label="Phone number" value={form.phone_number} onChange={(e) => setField('phone_number', e.target.value)} error={errors.phone_number} placeholder="+123456789" required />
+                  <Input label="City" value={form.city} onChange={(e) => setField('city', e.target.value)} />
+                  <Input label="Country" value={form.country} onChange={(e) => setField('country', e.target.value)} />
+                  <div className="sm:col-span-2">
+                    <Input label="Address" value={form.address} onChange={(e) => setField('address', e.target.value)} />
+                  </div>
+                </div>
+              )}
 
-              <Tabs.Panel value="identity">
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                  <TextInput
-                    label="Nationality"
-                    {...form.getInputProps('nationality')}
-                  />
-                   <TextInput
-                    label="Country of Birth"
-                    {...form.getInputProps('country_of_birth')}
-                  />
-                  <TextInput
-                    label="Place of Birth"
-                    {...form.getInputProps('place_of_birth')}
-                  />
-                   <Select
-                    label="Means of Identification"
-                    data={[
+              {activeTab === 'identity' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input label="Nationality" value={form.nationality} onChange={(e) => setField('nationality', e.target.value)} />
+                  <Input label="Country of birth" value={form.country_of_birth} onChange={(e) => setField('country_of_birth', e.target.value)} />
+                  <Input label="Place of birth" value={form.place_of_birth} onChange={(e) => setField('place_of_birth', e.target.value)} />
+                  <SelectField
+                    label="Means of identification"
+                    value={form.means_of_identification}
+                    onChange={(v) => setField('means_of_identification', v)}
+                    options={[
                       { value: 'passport', label: 'Passport' },
                       { value: 'national_id', label: 'National ID' },
-                      { value: 'drivers_license', label: 'Drivers License' }
+                      { value: 'drivers_license', label: 'Drivers License' },
                     ]}
-                    {...form.getInputProps('means_of_identification')}
                   />
-                  <TextInput
-                    label="ID / Passport Number"
-                    {...form.getInputProps('passport_number')}
-                  />
-                   <Group grow>
-                    <TextInput
-                        type="date"
-                        label="ID Issue Date"
-                        {...form.getInputProps('id_issue_date')}
-                    />
-                    <TextInput
-                        type="date"
-                        label="ID Expiry Date"
-                        {...form.getInputProps('id_expiry_date')}
-                    />
-                   </Group>
-                </SimpleGrid>
-              </Tabs.Panel>
+                  <Input label="ID / Passport number" value={form.passport_number} onChange={(e) => setField('passport_number', e.target.value)} />
+                  <Input label="ID issue date" type="date" value={form.id_issue_date} onChange={(e) => setField('id_issue_date', e.target.value)} />
+                  <Input label="ID expiry date" type="date" value={form.id_expiry_date} onChange={(e) => setField('id_expiry_date', e.target.value)} />
+                </div>
+              )}
 
-              <Tabs.Panel value="employment">
-                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                   <Select
-                    label="Employment Status"
-                    data={[
+              {activeTab === 'employment' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <SelectField
+                    label="Employment status"
+                    value={form.employment_status}
+                    onChange={(v) => setField('employment_status', v)}
+                    options={[
                       { value: 'employed', label: 'Employed' },
                       { value: 'self_employed', label: 'Self Employed' },
                       { value: 'unemployed', label: 'Unemployed' },
                       { value: 'student', label: 'Student' },
-                      { value: 'retired', label: 'Retired' }
+                      { value: 'retired', label: 'Retired' },
                     ]}
-                    {...form.getInputProps('employment_status')}
                   />
-                  <TextInput
-                    label="Employer Name"
-                    {...form.getInputProps('employer_name')}
-                  />
-                  <TextInput
-                    label="Annual Income"
-                    {...form.getInputProps('annual_income')}
-                  />
-                   <TextInput
-                    type="date"
-                    label="Date of Employment"
-                    {...form.getInputProps('date_of_employment')}
-                  />
-                  <TextInput
-                    label="Employer City"
-                    {...form.getInputProps('employer_city')}
-                  />
-                  <TextInput
-                    label="Employer State"
-                    {...form.getInputProps('employer_state')}
-                  />
-                  <TextInput
-                    label="Employer Address"
-                    {...form.getInputProps('employer_address')}
-                    style={{ gridColumn: 'span 2' }}
-                  />
-                </SimpleGrid>
-              </Tabs.Panel>
-            </Tabs>
+                  <Input label="Employer name" value={form.employer_name} onChange={(e) => setField('employer_name', e.target.value)} />
+                  <Input label="Annual income" value={form.annual_income} onChange={(e) => setField('annual_income', e.target.value)} />
+                  <Input label="Date of employment" type="date" value={form.date_of_employment} onChange={(e) => setField('date_of_employment', e.target.value)} />
+                  <Input label="Employer city" value={form.employer_city} onChange={(e) => setField('employer_city', e.target.value)} />
+                  <Input label="Employer state" value={form.employer_state} onChange={(e) => setField('employer_state', e.target.value)} />
+                  <div className="sm:col-span-2">
+                    <Input label="Employer address" value={form.employer_address} onChange={(e) => setField('employer_address', e.target.value)} />
+                  </div>
+                </div>
+              )}
 
-            <Group justify="flex-end" mt="xl">
-              <Button variant="default" onClick={() => navigate('/dashboard')}>
-                Cancel
-              </Button>
-              <Button type="submit" leftSection={<IconDeviceFloppy size={18} />}>
-                Save Changes
-              </Button>
-            </Group>
-          </form>
-        </Paper>
-      </Container>
-    </Box>
+              <div className="flex flex-wrap gap-3 mt-8 pt-6 border-t border-elite-border">
+                <Button type="button" variant="ghost" onClick={() => navigate('/dashboard')}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" leftIcon={<Save size={18} />} loading={loading}>
+                  Save changes
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </PageTransition>
   );
-};
-
-export default EditProfile;
+}

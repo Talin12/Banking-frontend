@@ -1,20 +1,29 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { FileDown, ArrowDownLeft, ArrowUpRight, Filter } from 'lucide-react';
 import api from '../services/api';
+import { Card, CardContent, CardHeader } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Badge } from '../components/ui/Badge';
+import { PageTransition } from '../components/layout/PageTransition';
+import { Skeleton } from '../components/ui/Skeleton';
 
-const Transactions = () => {
+function StatusBadge({ status }) {
+  const v = status?.toLowerCase();
+  if (v === 'completed') return <Badge variant="success">Completed</Badge>;
+  if (v === 'pending') return <Badge variant="warning">Pending</Badge>;
+  if (v === 'failed') return <Badge variant="danger">Failed</Badge>;
+  return <Badge>{status}</Badge>;
+}
+
+export default function Transactions() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [filters, setFilters] = useState({
-    start_date: '',
-    end_date: '',
-    account_number: ''
-  });
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  const [filters, setFilters] = useState({ start_date: '', end_date: '', account_number: '' });
+  const [showFilters, setShowFilters] = useState(false);
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -23,210 +32,171 @@ const Transactions = () => {
       if (filters.start_date) params.append('start_date', filters.start_date);
       if (filters.end_date) params.append('end_date', filters.end_date);
       if (filters.account_number) params.append('account_number', filters.account_number);
-
       const response = await api.get(`/accounts/transactions/?${params.toString()}`);
-      setTransactions(response.data.results || response.data);
+      setTransactions(response.data.results || response.data || []);
       setError('');
     } catch (err) {
       setError('Failed to fetch transactions');
-      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
   const handleDownloadPdf = async () => {
     setDownloadingPdf(true);
     try {
-      const payload = {
+      const res = await api.post('/accounts/transactions/pdf/', {
         start_date: filters.start_date || undefined,
         end_date: filters.end_date || undefined,
-        account_number: filters.account_number || undefined
-      };
-
-      const response = await api.post('/accounts/transactions/pdf/', payload);
-      
-      alert(response.data.message || 'PDF is being generated and will be sent to your email');
-      setError('');
+        account_number: filters.account_number || undefined,
+      });
+      alert(res.data.message || 'PDF will be sent to your email');
     } catch (err) {
-      setError('Failed to generate PDF statement');
-      console.error(err);
+      setError('Failed to generate PDF');
     } finally {
       setDownloadingPdf(false);
     }
   };
 
   const handleFilterChange = (e) => {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
-  };
-
-  const handleApplyFilters = (e) => {
-    e.preventDefault();
-    fetchTransactions();
-  };
-
-  const getTransactionTypeColor = (type) => {
-    const colors = {
-      deposit: '#10b981',
-      withdrawal: '#ef4444',
-      transfer: '#3b82f6',
-      interest: '#8b5cf6'
-    };
-    return colors[type] || '#6b7280';
-  };
-
-  const getStatusBadge = (status) => {
-    const styles = {
-      completed: { background: '#d1fae5', color: '#065f46' },
-      pending: { background: '#fef3c7', color: '#92400e' },
-      failed: { background: '#fee2e2', color: '#991b1b' }
-    };
-    return styles[status] || styles.pending;
+    setFilters((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h1 style={{ margin: 0 }}>Transaction History</h1>
-        <button
-          onClick={handleDownloadPdf}
-          disabled={downloadingPdf}
-          style={{
-            padding: '10px 20px',
-            background: downloadingPdf ? '#9ca3af' : '#8b5cf6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: downloadingPdf ? 'not-allowed' : 'pointer',
-            fontSize: '16px',
-            fontWeight: '500'
-          }}
-        >
-          {downloadingPdf ? 'Generating...' : '📄 Download Statement'}
-        </button>
-      </div>
-
-      {/* Filters */}
-      <form onSubmit={handleApplyFilters} style={{ 
-        background: 'white', 
-        padding: '20px', 
-        borderRadius: '8px', 
-        marginBottom: '30px',
-        border: '1px solid #ddd'
-      }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '15px' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: '500' }}>Start Date</label>
-            <input
-              type="date"
-              name="start_date"
-              value={filters.start_date}
-              onChange={handleFilterChange}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: '500' }}>End Date</label>
-            <input
-              type="date"
-              name="end_date"
-              value={filters.end_date}
-              onChange={handleFilterChange}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: '500' }}>Account Number</label>
-            <input
-              type="text"
-              name="account_number"
-              value={filters.account_number}
-              onChange={handleFilterChange}
-              placeholder="Optional"
-              style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
-            />
-          </div>
-        </div>
-        <button type="submit" style={{ 
-          padding: '10px 20px', 
-          background: '#3b82f6', 
-          color: 'white', 
-          border: 'none', 
-          borderRadius: '4px', 
-          cursor: 'pointer' 
-        }}>
-          Apply Filters
-        </button>
-      </form>
-
-      {/* Error */}
-      {error && (
-        <div style={{ background: '#fee2e2', color: '#991b1b', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-          {error}
-        </div>
-      )}
-
-      {/* Loading */}
-      {loading ? (
-        <p>Loading transactions...</p>
-      ) : transactions.length === 0 ? (
-        <div style={{ background: 'white', padding: '40px', textAlign: 'center', borderRadius: '8px', border: '1px solid #ddd' }}>
-          <p style={{ fontSize: '18px', color: '#666' }}>No transactions found</p>
-        </div>
-      ) : (
-        /* Transactions List */
-        <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #ddd', overflow: 'hidden' }}>
-          {transactions.map((transaction) => (
-            <div 
-              key={transaction.id} 
-              style={{ 
-                padding: '20px', 
-                borderBottom: '1px solid #eee',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
+    <PageTransition>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h1 className="text-2xl font-display font-heading text-white">Transaction history</h1>
+          <div className="flex gap-3">
+            <Button
+              variant="ghost"
+              size="md"
+              leftIcon={<Filter size={18} />}
+              onClick={() => setShowFilters((s) => !s)}
             >
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                  <span style={{ 
-                    fontSize: '18px', 
-                    fontWeight: '600',
-                    color: getTransactionTypeColor(transaction.transaction_type)
-                  }}>
-                    {transaction.transaction_type?.toUpperCase()}
-                  </span>
-                  <span style={{ 
-                    padding: '4px 12px', 
-                    borderRadius: '12px', 
-                    fontSize: '12px',
-                    fontWeight: '500',
-                    ...getStatusBadge(transaction.status)
-                  }}>
-                    {transaction.status}
-                  </span>
-                </div>
-                <p style={{ margin: '0 0 5px 0', color: '#666' }}>{transaction.description || 'No description'}</p>
-                <p style={{ margin: 0, fontSize: '14px', color: '#999' }}>
-                  {new Date(transaction.created_at).toLocaleString()}
-                </p>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ 
-                  fontSize: '24px', 
-                  fontWeight: '700',
-                  color: transaction.transaction_type === 'deposit' ? '#10b981' : 
-                         transaction.transaction_type === 'withdrawal' ? '#ef4444' : '#3b82f6'
-                }}>
-                  {transaction.transaction_type === 'withdrawal' ? '-' : '+'}${Number(transaction.amount).toFixed(2)}
-                </div>
-              </div>
-            </div>
-          ))}
+              Filters
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              leftIcon={<FileDown size={18} />}
+              onClick={handleDownloadPdf}
+              loading={downloadingPdf}
+            >
+              Download statement
+            </Button>
+          </div>
         </div>
-      )}
-    </div>
-  );
-};
 
-export default Transactions;
+        {showFilters && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="glass-card rounded-2xl p-6"
+          >
+            <form
+              onSubmit={(e) => { e.preventDefault(); fetchTransactions(); }}
+              className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+            >
+              <Input
+                label="Start date"
+                type="date"
+                name="start_date"
+                value={filters.start_date}
+                onChange={handleFilterChange}
+              />
+              <Input
+                label="End date"
+                type="date"
+                name="end_date"
+                value={filters.end_date}
+                onChange={handleFilterChange}
+              />
+              <Input
+                label="Account number"
+                name="account_number"
+                value={filters.account_number}
+                onChange={handleFilterChange}
+                placeholder="Optional"
+              />
+              <div className="sm:col-span-3">
+                <Button type="submit" variant="outline" size="md">Apply filters</Button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+
+        {error && (
+          <div className="p-4 rounded-2xl border border-danger/30 bg-danger/10 text-danger text-sm">
+            {error}
+          </div>
+        )}
+
+        <Card>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="p-8 space-y-4">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            ) : transactions.length === 0 ? (
+              <div className="py-16 text-center text-elite-text-muted">
+                No transactions found
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-elite-border text-left text-xs text-elite-text-muted uppercase">
+                      <th className="py-4 px-6 font-medium">Type</th>
+                      <th className="py-4 px-6 font-medium">Description</th>
+                      <th className="py-4 px-6 font-medium">Status</th>
+                      <th className="py-4 px-6 font-medium">Date</th>
+                      <th className="py-4 px-6 font-medium text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map((tx) => (
+                      <tr
+                        key={tx.id}
+                        className="border-b border-elite-border/50 hover:bg-white/[0.02] transition-colors"
+                      >
+                        <td className="py-4 px-6">
+                          <span className="inline-flex items-center gap-1.5 font-medium capitalize">
+                            {tx.transaction_type === 'deposit' ? (
+                              <ArrowDownLeft size={16} className="text-emerald" />
+                            ) : (
+                              <ArrowUpRight size={16} className="text-danger" />
+                            )}
+                            {tx.transaction_type}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-elite-text-muted">{tx.description || '—'}</td>
+                        <td className="py-4 px-6">
+                          <StatusBadge status={tx.status} />
+                        </td>
+                        <td className="py-4 px-6 text-elite-text-muted text-sm">
+                          {new Date(tx.created_at).toLocaleString()}
+                        </td>
+                        <td className="py-4 px-6 text-right font-heading">
+                          <span className={tx.transaction_type === 'deposit' ? 'text-emerald' : 'text-danger'}>
+                            {tx.transaction_type === 'withdrawal' ? '-' : '+'}${Number(tx.amount).toFixed(2)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </PageTransition>
+  );
+}

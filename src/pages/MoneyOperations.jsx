@@ -1,23 +1,47 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Wallet, ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft } from 'lucide-react';
 import api from '../services/api';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Card, CardContent, CardHeader } from '../components/ui/Card';
+import { OtpInput } from '../components/ui/OtpInput';
+import { PageTransition } from '../components/layout/PageTransition';
 
-const MoneyOperations = () => {
+const tabs = [
+  { id: 'deposit', label: 'Deposit', icon: ArrowDownToLine, color: 'emerald' },
+  { id: 'withdraw', label: 'Withdraw', icon: ArrowUpFromLine, color: 'danger' },
+  { id: 'transfer', label: 'Transfer', icon: ArrowRightLeft, color: 'electric' },
+];
+
+function getErrorMessage(err, defaultMsg) {
+  if (err.response?.data) {
+    const d = err.response.data;
+    if (d.error) return d.error;
+    if (d.detail) return d.detail;
+    if (d.non_field_errors) return d.non_field_errors[0];
+    const key = Object.keys(d)[0];
+    if (key) {
+      const msg = Array.isArray(d[key]) ? d[key][0] : d[key];
+      const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      return `${label}: ${msg}`;
+    }
+  }
+  return defaultMsg;
+}
+
+export default function MoneyOperations() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('deposit');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [accountNumber, setAccountNumber] = useState('');
 
-  // --- STATE MANAGEMENT ---
   const [depositAmount, setDepositAmount] = useState('');
-  
-  // Withdraw
   const [withdrawStep, setWithdrawStep] = useState(1);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawUsername, setWithdrawUsername] = useState('');
-
-  // Transfer
   const [transferStep, setTransferStep] = useState(1);
   const [recipientAccount, setRecipientAccount] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
@@ -26,392 +50,278 @@ const MoneyOperations = () => {
   const [otp, setOtp] = useState('');
 
   useEffect(() => {
-    const fetchAccount = async () => {
-      try {
-        const res = await api.get('/profiles/my-profile/');
-        const profile = res.data.profile?.data || res.data.profile || res.data;
-        if (profile?.account_number) setAccountNumber(profile.account_number);
-      } catch (err) {
-        console.error("Could not load account details");
-      }
-    };
-    fetchAccount();
+    api.get('/profiles/my-profile/').then((res) => {
+      const p = res.data.profile?.data || res.data.profile || res.data;
+      if (p?.account_number) setAccountNumber(p.account_number);
+    }).catch(() => {});
   }, []);
 
   const clearMessage = () => setMessage({ text: '', type: '' });
 
-  // Helper for error parsing
-  const getErrorMessage = (err, defaultMsg) => {
-    if (err.response && err.response.data) {
-      const data = err.response.data;
-      if (data.error) return data.error;
-      if (data.detail) return data.detail;
-      if (data.non_field_errors) return data.non_field_errors[0];
-
-      const firstKey = Object.keys(data)[0];
-      if (firstKey) {
-        const msg = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
-        const formattedKey = firstKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        return `${formattedKey}: ${msg}`;
-      }
-    }
-    return defaultMsg;
-  };
-
   const handleDeposit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    clearMessage();
+    setLoading(true); clearMessage();
     try {
-      await api.post('/accounts/deposit/', { 
-        account_number: accountNumber, 
-        amount: depositAmount 
-      });
-      setMessage({ text: 'Deposit Successful!', type: 'success' });
+      await api.post('/accounts/deposit/', { account_number: accountNumber, amount: depositAmount });
+      setMessage({ text: 'Deposit successful', type: 'success' });
       setDepositAmount('');
     } catch (err) {
-      if (err.response?.status === 403) {
-        setMessage({ 
-          text: 'Permission Denied: You need to be a Bank Teller to perform deposits.', 
-          type: 'error' 
-        });
-      } else {
-        setMessage({ text: getErrorMessage(err, 'Deposit failed.'), type: 'error' });
-      }
-    } finally {
-      setLoading(false);
-    }
+      setMessage({ text: err.response?.status === 403 ? 'Permission denied: Bank Teller only.' : getErrorMessage(err, 'Deposit failed.'), type: 'error' });
+    } finally { setLoading(false); }
   };
 
   const handleWithdrawInitiate = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    clearMessage();
+    setLoading(true); clearMessage();
     try {
-      await api.post('/accounts/initiate-withdrawal/', {
-        account_number: accountNumber,
-        amount: withdrawAmount
-      });
+      await api.post('/accounts/initiate-withdrawal/', { account_number: accountNumber, amount: withdrawAmount });
       setWithdrawStep(2);
-      setMessage({ text: 'Please verify your username to confirm.', type: 'info' });
+      setMessage({ text: 'Verify your username to confirm.', type: 'info' });
     } catch (err) {
-      setMessage({ text: getErrorMessage(err, 'Withdrawal initiation failed.'), type: 'error' });
-    } finally {
-      setLoading(false);
-    }
+      setMessage({ text: getErrorMessage(err, 'Withdrawal failed.'), type: 'error' });
+    } finally { setLoading(false); }
   };
 
   const handleWithdrawConfirm = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    clearMessage();
+    setLoading(true); clearMessage();
     try {
-      await api.post('/accounts/verify-username-and-withdraw/', {
-        username: withdrawUsername
-      });
-      setMessage({ text: 'Withdrawal Successful!', type: 'success' });
-      setWithdrawStep(1);
-      setWithdrawAmount('');
-      setWithdrawUsername('');
+      await api.post('/accounts/verify-username-and-withdraw/', { username: withdrawUsername });
+      setMessage({ text: 'Withdrawal successful', type: 'success' });
+      setWithdrawStep(1); setWithdrawAmount(''); setWithdrawUsername('');
     } catch (err) {
       setMessage({ text: getErrorMessage(err, 'Verification failed.'), type: 'error' });
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const handleTransferInitiate = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    clearMessage();
+    setLoading(true); clearMessage();
     try {
       await api.post('/accounts/transfer/initiate/', {
         sender_account: accountNumber,
         receiver_account: recipientAccount,
         amount: transferAmount,
-        description: transferDesc
+        description: transferDesc,
       });
       setTransferStep(2);
-      setMessage({ text: 'Please answer your security question.', type: 'info' });
+      setMessage({ text: 'Answer your security question.', type: 'info' });
     } catch (err) {
-      setMessage({ text: getErrorMessage(err, 'Transfer initiation failed.'), type: 'error' });
-    } finally {
-      setLoading(false);
-    }
+      setMessage({ text: getErrorMessage(err, 'Transfer failed.'), type: 'error' });
+    } finally { setLoading(false); }
   };
 
   const handleTransferSecurity = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    clearMessage();
+    setLoading(true); clearMessage();
     try {
-      await api.post('/accounts/transfer/verify-security-question/', {
-        security_answer: securityAnswer
-      });
+      await api.post('/accounts/transfer/verify-security-question/', { security_answer: securityAnswer });
       setTransferStep(3);
-      setMessage({ text: 'Security Verified. OTP sent to email.', type: 'info' });
+      setMessage({ text: 'OTP sent to your email.', type: 'info' });
     } catch (err) {
-      setMessage({ text: getErrorMessage(err, 'Incorrect security answer.'), type: 'error' });
-    } finally {
-      setLoading(false);
-    }
+      setMessage({ text: getErrorMessage(err, 'Incorrect answer.'), type: 'error' });
+    } finally { setLoading(false); }
   };
 
   const handleTransferOTP = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    clearMessage();
+    setLoading(true); clearMessage();
     try {
-      await api.post('/accounts/transfer/verify-otp/', { otp: otp });
-      setMessage({ text: 'Transfer Complete!', type: 'success' });
+      await api.post('/accounts/transfer/verify-otp/', { otp });
+      setMessage({ text: 'Transfer complete', type: 'success' });
       setTransferStep(1);
-      setRecipientAccount('');
-      setTransferAmount('');
-      setTransferDesc('');
-      setSecurityAnswer('');
-      setOtp('');
+      setRecipientAccount(''); setTransferAmount(''); setTransferDesc(''); setSecurityAnswer(''); setOtp('');
     } catch (err) {
-       if (err.response?.status === 404) {
-        setMessage({ text: 'Error: Transfer OTP endpoint not found on server.', type: 'error' });
-      } else {
-        setMessage({ text: getErrorMessage(err, 'Invalid OTP.'), type: 'error' });
-      }
-    } finally {
-      setLoading(false);
-    }
+      setMessage({ text: err.response?.status === 404 ? 'OTP endpoint not found.' : getErrorMessage(err, 'Invalid OTP.'), type: 'error' });
+    } finally { setLoading(false); }
+  };
+
+  const messageStyles = {
+    success: 'border-emerald/30 bg-emerald/10 text-emerald',
+    error: 'border-danger/30 bg-danger/10 text-danger',
+    info: 'border-electric/30 bg-electric/10 text-electric',
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6', padding: '40px 20px' }}>
-      <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-        
-        {/* Header */}
-        <button 
+    <PageTransition>
+      <div className="max-w-2xl mx-auto space-y-6">
+        <button
           onClick={() => navigate('/dashboard')}
-          style={{ background: 'none', border: 'none', color: '#666', marginBottom: '20px', cursor: 'pointer' }}
+          className="flex items-center gap-2 text-elite-text-muted hover:text-white transition-colors"
         >
-          ← Back to Dashboard
+          <ArrowLeft size={20} /> Back to Dashboard
         </button>
-        
-        <div style={{ background: 'white', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-          
-          {/* Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid #eee' }}>
-            <button 
-              style={{ ...tabStyle, borderBottom: activeTab === 'deposit' ? '3px solid #10b981' : 'none', color: activeTab === 'deposit' ? '#10b981' : '#666' }}
-              onClick={() => { setActiveTab('deposit'); clearMessage(); }}
-            >
-              Deposit
-            </button>
-            <button 
-              style={{ ...tabStyle, borderBottom: activeTab === 'withdraw' ? '3px solid #ef4444' : 'none', color: activeTab === 'withdraw' ? '#ef4444' : '#666' }}
-              onClick={() => { setActiveTab('withdraw'); clearMessage(); setWithdrawStep(1); }}
-            >
-              Withdraw
-            </button>
-            <button 
-              style={{ ...tabStyle, borderBottom: activeTab === 'transfer' ? '3px solid #3b82f6' : 'none', color: activeTab === 'transfer' ? '#3b82f6' : '#666' }}
-              onClick={() => { setActiveTab('transfer'); clearMessage(); setTransferStep(1); }}
-            >
-              Transfer
-            </button>
+
+        <Card>
+          <div className="flex border-b border-elite-border">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  clearMessage();
+                  setWithdrawStep(1);
+                  setTransferStep(1);
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-gold text-gold'
+                    : 'border-transparent text-elite-text-muted hover:text-white'
+                }`}
+              >
+                <tab.icon size={18} /> {tab.label}
+              </button>
+            ))}
           </div>
 
-          <div style={{ padding: '30px' }}>
+          <CardContent className="p-6 lg:p-8">
             {message.text && (
-              <div style={{ 
-                padding: '12px', 
-                borderRadius: '8px', 
-                marginBottom: '20px',
-                background: message.type === 'success' ? '#dcfce7' : (message.type === 'info' ? '#e0f2fe' : '#fee2e2'),
-                color: message.type === 'success' ? '#166534' : (message.type === 'info' ? '#0369a1' : '#991b1b')
-              }}>
+              <div className={`mb-6 p-4 rounded-xl border ${messageStyles[message.type] || messageStyles.info}`}>
                 {message.text}
               </div>
             )}
 
-            {/* --- DEPOSIT FORM --- */}
-            {activeTab === 'deposit' && (
-              <form onSubmit={handleDeposit}>
-                <h2 style={{ marginTop: 0 }}>Deposit Funds</h2>
-                <div style={inputGroupStyle}>
-                  <label style={labelStyle}>Your Account Number</label>
-                  <input type="text" value={accountNumber} readOnly style={{ ...inputStyle, background: '#f9fafb' }} />
-                </div>
-                <div style={inputGroupStyle}>
-                  <label style={labelStyle}>Amount ($)</label>
-                  <input 
-                    type="number" 
-                    required 
-                    min="1"
-                    value={depositAmount}
-                    onChange={e => setDepositAmount(e.target.value)}
-                    style={inputStyle} 
-                    placeholder="Enter amount" 
-                  />
-                </div>
-                <button type="submit" disabled={loading} style={{ ...buttonStyle, background: '#10b981' }}>
-                  {loading ? 'Processing...' : 'Deposit Funds'}
-                </button>
-              </form>
-            )}
+            <AnimatePresence mode="wait">
+              {activeTab === 'deposit' && (
+                <motion.form
+                  key="deposit"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  onSubmit={handleDeposit}
+                  className="space-y-5"
+                >
+                  <Input label="Your account number" value={accountNumber} readOnly />
+                  <div>
+                    <label className="block text-sm font-medium text-elite-text-muted mb-1.5">Amount ($)</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-4 py-4 rounded-xl bg-elite-surface border border-elite-border text-2xl font-heading text-white placeholder-elite-text-muted focus:border-gold focus:ring-2 focus:ring-gold/20"
+                    />
+                  </div>
+                  <Button type="submit" variant="success" size="lg" className="w-full" loading={loading}>
+                    Deposit funds
+                  </Button>
+                </motion.form>
+              )}
 
-            {/* --- WITHDRAW FORM --- */}
-            {activeTab === 'withdraw' && (
-              <>
-                {withdrawStep === 1 ? (
-                  <form onSubmit={handleWithdrawInitiate}>
-                    <h2 style={{ marginTop: 0 }}>Withdraw - Step 1/2</h2>
-                    <div style={inputGroupStyle}>
-                      <label style={labelStyle}>From Account</label>
-                      <input type="text" value={accountNumber} readOnly style={{ ...inputStyle, background: '#f9fafb' }} />
-                    </div>
-                    <div style={inputGroupStyle}>
-                      <label style={labelStyle}>Amount ($)</label>
-                      <input 
-                        type="number" 
-                        required 
-                        min="1"
-                        value={withdrawAmount}
-                        onChange={e => setWithdrawAmount(e.target.value)}
-                        style={inputStyle} 
-                        placeholder="Enter amount" 
-                      />
-                    </div>
-                    <button type="submit" disabled={loading} style={{ ...buttonStyle, background: '#ef4444' }}>
-                      Next: Verify Identity
-                    </button>
-                  </form>
-                ) : (
-                  <form onSubmit={handleWithdrawConfirm}>
-                    <h2 style={{ marginTop: 0 }}>Withdraw - Step 2/2</h2>
-                    <p style={{ color: '#666', fontSize: '14px' }}>Please confirm your username to complete the withdrawal.</p>
-                    <div style={inputGroupStyle}>
-                      <label style={labelStyle}>Confirm Username</label>
-                      <input 
-                        type="text" 
-                        required 
+              {activeTab === 'withdraw' && (
+                <motion.div
+                  key="withdraw"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-5"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="w-8 h-1 rounded-full bg-gold" />
+                    <span className="text-sm text-elite-text-muted">Step {withdrawStep}/2</span>
+                  </div>
+                  {withdrawStep === 1 ? (
+                    <form onSubmit={handleWithdrawInitiate} className="space-y-5">
+                      <Input label="From account" value={accountNumber} readOnly />
+                      <div>
+                        <label className="block text-sm font-medium text-elite-text-muted mb-1.5">Amount ($)</label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          value={withdrawAmount}
+                          onChange={(e) => setWithdrawAmount(e.target.value)}
+                          className="w-full px-4 py-4 rounded-xl bg-elite-surface border border-elite-border text-2xl font-heading text-white focus:border-gold focus:ring-2 focus:ring-gold/20"
+                        />
+                      </div>
+                      <Button type="submit" variant="danger" size="lg" className="w-full" loading={loading}>
+                        Next: Verify identity
+                      </Button>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleWithdrawConfirm} className="space-y-5">
+                      <Input
+                        label="Confirm username"
                         value={withdrawUsername}
-                        onChange={e => setWithdrawUsername(e.target.value)}
-                        style={inputStyle} 
-                        placeholder="Enter your username" 
+                        onChange={(e) => setWithdrawUsername(e.target.value)}
+                        placeholder="Your username"
+                        required
                       />
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button type="button" onClick={() => setWithdrawStep(1)} style={{ ...buttonStyle, background: '#9ca3af' }}>Back</button>
-                      <button type="submit" disabled={loading} style={{ ...buttonStyle, background: '#ef4444' }}>
-                        {loading ? 'Processing...' : 'Confirm Withdraw'}
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </>
-            )}
+                      <div className="flex gap-3">
+                        <Button type="button" variant="ghost" className="flex-1" onClick={() => setWithdrawStep(1)}>Back</Button>
+                        <Button type="submit" variant="danger" className="flex-1" loading={loading}>Confirm withdraw</Button>
+                      </div>
+                    </form>
+                  )}
+                </motion.div>
+              )}
 
-            {/* --- TRANSFER FORM --- */}
-            {activeTab === 'transfer' && (
-              <>
-                {transferStep === 1 && (
-                  <form onSubmit={handleTransferInitiate}>
-                    <h2 style={{ marginTop: 0 }}>Transfer - Step 1/3</h2>
-                    <div style={inputGroupStyle}>
-                      <label style={labelStyle}>Recipient Account Number</label>
-                      <input 
-                        type="text" 
-                        required 
-                        value={recipientAccount}
-                        onChange={e => setRecipientAccount(e.target.value)}
-                        style={inputStyle} 
-                        placeholder="Account Number" 
+              {activeTab === 'transfer' && (
+                <motion.div
+                  key="transfer"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-5"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    {[1, 2, 3].map((s) => (
+                      <span
+                        key={s}
+                        className={`h-1 flex-1 rounded-full ${transferStep >= s ? 'bg-gold' : 'bg-elite-border'}`}
                       />
-                    </div>
-                    <div style={inputGroupStyle}>
-                      <label style={labelStyle}>Amount ($)</label>
-                      <input 
-                        type="number" 
-                        required 
-                        min="1"
-                        value={transferAmount}
-                        onChange={e => setTransferAmount(e.target.value)}
-                        style={inputStyle} 
-                        placeholder="Enter amount" 
-                      />
-                    </div>
-                    <div style={inputGroupStyle}>
-                      <label style={labelStyle}>Description</label>
-                      <input 
-                        type="text" 
-                        value={transferDesc}
-                        onChange={e => setTransferDesc(e.target.value)}
-                        style={inputStyle} 
-                        placeholder="e.g. Rent" 
-                      />
-                    </div>
-                    <button type="submit" disabled={loading} style={{ ...buttonStyle, background: '#3b82f6' }}>
-                      Next
-                    </button>
-                  </form>
-                )}
-
-                {transferStep === 2 && (
-                  <form onSubmit={handleTransferSecurity}>
-                    <h2 style={{ marginTop: 0 }}>Transfer - Step 2/3</h2>
-                    <p style={{ color: '#666' }}>Please answer your security question to proceed.</p>
-                    <div style={inputGroupStyle}>
-                      <label style={labelStyle}>Security Answer</label>
-                      <input 
-                        type="password" 
-                        required 
+                    ))}
+                    <span className="text-sm text-elite-text-muted">Step {transferStep}/3</span>
+                  </div>
+                  {transferStep === 1 && (
+                    <form onSubmit={handleTransferInitiate} className="space-y-5">
+                      <Input label="Recipient account" value={recipientAccount} onChange={(e) => setRecipientAccount(e.target.value)} required />
+                      <div>
+                        <label className="block text-sm font-medium text-elite-text-muted mb-1.5">Amount ($)</label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          value={transferAmount}
+                          onChange={(e) => setTransferAmount(e.target.value)}
+                          className="w-full px-4 py-4 rounded-xl bg-elite-surface border border-elite-border text-2xl font-heading text-white focus:border-gold focus:ring-2 focus:ring-gold/20"
+                        />
+                      </div>
+                      <Input label="Description" value={transferDesc} onChange={(e) => setTransferDesc(e.target.value)} placeholder="e.g. Rent" />
+                      <Button type="submit" variant="electric" size="lg" className="w-full" loading={loading}>Next</Button>
+                    </form>
+                  )}
+                  {transferStep === 2 && (
+                    <form onSubmit={handleTransferSecurity} className="space-y-5">
+                      <Input
+                        label="Security answer"
+                        type="password"
                         value={securityAnswer}
-                        onChange={e => setSecurityAnswer(e.target.value)}
-                        style={inputStyle} 
-                        placeholder="Enter answer" 
+                        onChange={(e) => setSecurityAnswer(e.target.value)}
+                        required
                       />
-                    </div>
-                    <button type="submit" disabled={loading} style={{ ...buttonStyle, background: '#3b82f6' }}>
-                      Next: Verify OTP
-                    </button>
-                  </form>
-                )}
-
-                {transferStep === 3 && (
-                  <form onSubmit={handleTransferOTP}>
-                    <h2 style={{ marginTop: 0 }}>Transfer - Step 3/3</h2>
-                    <p style={{ color: '#666' }}>We sent an OTP to your email. Enter it below.</p>
-                    <div style={inputGroupStyle}>
-                      <label style={labelStyle}>Enter OTP</label>
-                      <input 
-                        type="text" 
-                        required 
-                        maxLength="6"
-                        value={otp}
-                        onChange={e => setOtp(e.target.value)}
-                        style={{ ...inputStyle, letterSpacing: '4px', textAlign: 'center' }} 
-                        placeholder="000000" 
-                      />
-                    </div>
-                    <button type="submit" disabled={loading} style={{ ...buttonStyle, background: '#10b981' }}>
-                      {loading ? 'Finalizing...' : 'Complete Transfer'}
-                    </button>
-                  </form>
-                )}
-              </>
-            )}
-
-          </div>
-        </div>
+                      <Button type="submit" variant="electric" size="lg" className="w-full" loading={loading}>Next: Verify OTP</Button>
+                    </form>
+                  )}
+                  {transferStep === 3 && (
+                    <form onSubmit={handleTransferOTP} className="space-y-5">
+                      <div>
+                        <label className="block text-sm font-medium text-elite-text-muted mb-3 text-center">Enter OTP from email</label>
+                        <OtpInput value={otp} onChange={setOtp} length={6} disabled={loading} />
+                      </div>
+                      <Button type="submit" variant="success" size="lg" className="w-full" loading={loading} disabled={otp.length !== 6}>
+                        Complete transfer
+                      </Button>
+                    </form>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </PageTransition>
   );
-};
-
-// Styles
-const tabStyle = {
-  flex: 1, padding: '15px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', fontWeight: '600'
-};
-const inputGroupStyle = { marginBottom: '20px' };
-const labelStyle = { display: 'block', marginBottom: '8px', color: '#4b5563', fontSize: '14px', fontWeight: '500' };
-const inputStyle = { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '16px' };
-const buttonStyle = { width: '100%', padding: '12px', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: '600' };
-
-export default MoneyOperations;
+}

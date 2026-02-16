@@ -1,22 +1,32 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { AppLayout } from './components/layout/AppLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Register from './pages/Register';
 import Transactions from './pages/Transactions';
-import NextOfKin from './pages/NextOfKin'; 
+import NextOfKin from './pages/NextOfKin';
 import ProfilePhotos from './pages/ProfilePhotos';
 import VirtualCards from './pages/VirtualCards';
-import MoneyOperations from './pages/MoneyOperations'; 
+import MoneyOperations from './pages/MoneyOperations';
 import Activate from './pages/Activate';
-import EditProfile from './pages/EditProfile'; // <-- Import added
+import EditProfile from './pages/EditProfile';
 
-const ProtectedRoute = ({ children }) => {
+function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
-  
-  if (loading) return <div>Loading...</div>;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-elite-black flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+          <p className="text-elite-text-muted text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   return user ? children : <Navigate to="/login" />;
-};
+}
 
 function App() {
   return (
@@ -25,21 +35,25 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          
-          {/* Protected Routes */}
+          <Route path="/activate/:uid/:token" element={<Activate />} />
+
           <Route
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <AppLayout>
+                  <Dashboard />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
           <Route
-            path="/edit-profile"  // <-- Route added
+            path="/edit-profile"
             element={
               <ProtectedRoute>
-                <EditProfile />
+                <AppLayout>
+                  <EditProfile />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
@@ -47,7 +61,9 @@ function App() {
             path="/transactions"
             element={
               <ProtectedRoute>
-                <Transactions />
+                <AppLayout>
+                  <Transactions />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
@@ -55,7 +71,9 @@ function App() {
             path="/virtual-cards"
             element={
               <ProtectedRoute>
-                <VirtualCards />
+                <AppLayout>
+                  <VirtualCards />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
@@ -63,7 +81,9 @@ function App() {
             path="/operations"
             element={
               <ProtectedRoute>
-                <MoneyOperations />
+                <AppLayout>
+                  <MoneyOperations />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
@@ -71,7 +91,9 @@ function App() {
             path="/next-of-kin"
             element={
               <ProtectedRoute>
-                <NextOfKin />
+                <AppLayout>
+                  <NextOfKin />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
@@ -79,11 +101,13 @@ function App() {
             path="/upload-photos"
             element={
               <ProtectedRoute>
-                <ProfilePhotos />
+                <AppLayout>
+                  <ProfilePhotos />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
-          <Route path="/activate/:uid/:token" element={<Activate />} />
+
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>
       </BrowserRouter>

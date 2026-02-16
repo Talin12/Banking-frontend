@@ -1,28 +1,15 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Container,
-  Paper,
-  Title,
-  Text,
-  TextInput,
-  PasswordInput,
-  Button,
-  Stack,
-  Alert,
-  Box,
-} from '@mantine/core';
+import { Shield, Lock, Zap } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { OtpInput } from '../components/ui/OtpInput';
 
-const ROYAL = {
-  surface: 'rgba(30, 41, 59, 0.7)',
-  border: 'rgba(212, 175, 55, 0.25)',
-};
-
-const getErrorMessage = (err) => {
-  if (err.response && err.response.data) {
+function getErrorMessage(err) {
+  if (err.response?.data) {
     const data = err.response.data;
     if (data.error) return data.error;
     if (data.detail) return data.detail;
@@ -35,9 +22,15 @@ const getErrorMessage = (err) => {
     }
   }
   return 'Login failed. Please check your connection.';
-};
+}
 
-const Login = () => {
+const trustBadges = [
+  { icon: Shield, text: 'Bank-grade security' },
+  { icon: Lock, text: '256-bit encryption' },
+  { icon: Zap, text: 'Instant verification' },
+];
+
+export default function Login() {
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -64,6 +57,7 @@ const Login = () => {
 
   const handleOTP = async (e) => {
     e.preventDefault();
+    if (otp.length !== 6) return;
     setError('');
     setLoading(true);
     try {
@@ -77,48 +71,27 @@ const Login = () => {
     }
   };
 
-  const cardVariants = {
-    hidden: { opacity: 0, y: 24 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] },
-    },
-  };
-
-  const formVariants = {
-    hidden: { opacity: 0, x: -12 },
-    visible: (i) => ({
-      opacity: 1,
-      x: 0,
-      transition: { delay: i * 0.06, duration: 0.3 },
-    }),
-  };
-
   return (
-    <Box py={100} style={{ minHeight: '100vh' }}>
-      <Container size="xs">
+    <div className="min-h-screen bg-elite-black relative overflow-hidden">
+      {/* Animated gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-elite-bg via-elite-surface to-elite-black" />
+      <div className="absolute inset-0 bg-gradient-radial opacity-60" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gold/5 rounded-full blur-[120px] animate-gradient" />
+
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-12">
         <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={cardVariants}
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-md"
         >
-          <Paper
-            p="xl"
-            radius="lg"
-            style={{
-              background: ROYAL.surface,
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              border: `1px solid ${ROYAL.border}`,
-            }}
-          >
-            <Title order={1} ta="center" mb="md" fw={600} c="gold.4">
-              NextGen Bank
-            </Title>
-            <Text ta="center" c="dimmed" size="sm" mb="lg">
-              Sign in to your account
-            </Text>
+          <div className="glass-card rounded-3xl p-8 lg:p-10 shadow-2xl">
+            <div className="text-center mb-8">
+              <h1 className="text-2xl lg:text-3xl font-display font-heading text-white mb-1">
+                NextGen <span className="text-gold">Bank</span>
+              </h1>
+              <p className="text-elite-text-muted text-sm">Sign in to your account</p>
+            </div>
 
             <AnimatePresence mode="wait">
               {error && (
@@ -126,10 +99,9 @@ const Login = () => {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
+                  className="mb-6 p-4 rounded-xl bg-danger/10 border border-danger/30 text-danger text-sm"
                 >
-                  <Alert color="red" variant="light" radius="md" mb="lg">
-                    {error}
-                  </Alert>
+                  {error}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -139,112 +111,103 @@ const Login = () => {
                 <motion.form
                   key="credentials"
                   onSubmit={handleCredentials}
-                  initial={{ opacity: 0, x: -16 }}
+                  initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 16 }}
+                  exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
+                  className="space-y-5"
                 >
-                  <Stack gap="md">
-                    <motion.div custom={0} variants={formVariants} initial="hidden" animate="visible">
-                      <TextInput
-                        label="Email"
-                        type="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        size="md"
-                        radius="md"
-                      />
-                    </motion.div>
-                    <motion.div custom={1} variants={formVariants} initial="hidden" animate="visible">
-                      <PasswordInput
-                        label="Password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        size="md"
-                        radius="md"
-                      />
-                    </motion.div>
-                    <motion.div custom={2} variants={formVariants} initial="hidden" animate="visible">
-                      <Button
-                        type="submit"
-                        fullWidth
-                        size="md"
-                        loading={loading}
-                        color="gold"
-                        variant="filled"
-                        radius="md"
-                        style={{ boxShadow: '0 0 20px rgba(212, 175, 55, 0.25)' }}
-                      >
-                        {loading ? 'Sending OTP...' : 'Continue'}
-                      </Button>
-                    </motion.div>
-                  </Stack>
+                  <Input
+                    label="Email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                  <Input
+                    label="Password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <Button type="submit" variant="primary" size="lg" className="w-full" loading={loading}>
+                    {loading ? 'Sending OTP...' : 'Continue'}
+                  </Button>
                 </motion.form>
               ) : (
                 <motion.form
                   key="otp"
                   onSubmit={handleOTP}
-                  initial={{ opacity: 0, x: -16 }}
+                  initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 16 }}
+                  exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
+                  className="space-y-6"
                 >
-                  <Alert color="emerald" variant="light" radius="md" mb="lg">
-                    OTP sent to {email}. Check your email (and spam folder).
-                  </Alert>
-                  <Stack gap="md">
-                    <TextInput
-                      label="Enter OTP"
-                      placeholder="000000"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      required
-                      maxLength={6}
-                      size="md"
-                      radius="md"
-                      styles={{ input: { letterSpacing: 6, fontSize: 18 } }}
-                    />
-                    <Button
-                      type="submit"
-                      fullWidth
-                      size="md"
-                      loading={loading}
-                      color="emerald"
-                      variant="filled"
-                      radius="md"
-                    >
-                      {loading ? 'Verifying...' : 'Verify & Login'}
-                    </Button>
-                    <Button
-                      type="button"
-                      fullWidth
-                      variant="subtle"
-                      color="gray"
-                      size="md"
-                      onClick={() => setStep(1)}
-                    >
-                      Back
-                    </Button>
-                  </Stack>
+                  <p className="text-emerald/90 text-sm text-center">
+                    OTP sent to <strong className="text-white">{email}</strong>. Check your email and spam folder.
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-elite-text-muted mb-3 text-center">
+                      Enter 6-digit code
+                    </label>
+                    <OtpInput value={otp} onChange={setOtp} length={6} disabled={loading} />
+                  </div>
+                  <Button
+                    type="submit"
+                    variant="success"
+                    size="lg"
+                    className="w-full"
+                    loading={loading}
+                    disabled={otp.length !== 6}
+                  >
+                    {loading ? 'Verifying...' : 'Verify & sign in'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="md"
+                    className="w-full"
+                    onClick={() => setStep(1)}
+                  >
+                    Back
+                  </Button>
                 </motion.form>
               )}
             </AnimatePresence>
 
-            <Text ta="center" mt="lg" size="sm" c="dimmed">
+            <p className="text-center text-sm text-elite-text-muted mt-6">
               Don&apos;t have an account?{' '}
-              <Link to="/register" style={{ color: 'var(--mantine-color-gold-4)' }}>
-                Register here
+              <Link to="/register" className="text-gold hover:text-gold-light transition-colors">
+                Register
               </Link>
-            </Text>
-          </Paper>
-        </motion.div>
-      </Container>
-    </Box>
-  );
-};
+            </p>
+          </div>
 
-export default Login;
+          {/* Trust badges */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mt-8 flex flex-wrap justify-center gap-6"
+          >
+            {trustBadges.map(({ icon: Icon, text }, i) => (
+              <div
+                key={text}
+                className="flex items-center gap-2 text-elite-text-muted text-sm"
+              >
+                <span className="text-gold/80">
+                  <Icon size={18} />
+                </span>
+                <span>{text}</span>
+              </div>
+            ))}
+          </motion.div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
