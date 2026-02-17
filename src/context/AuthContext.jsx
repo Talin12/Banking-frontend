@@ -7,16 +7,13 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
+  useEffect(() => { checkAuth(); }, []);
 
   const checkAuth = async () => {
     try {
-      // With 'withCredentials: true', this request automatically sends the 'access' cookie
       const res = await api.get('/auth/users/me/');
       setUser(res.data);
-    } catch (err) {
+    } catch {
       setUser(null);
     } finally {
       setLoading(false);
@@ -24,29 +21,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (email, password) => {
-    // 1. Send credentials
-    const response = await api.post('/auth/login/', {
-      email,
-      password,
-    });
-    
-    // 2. Backend sets 'access' and 'refresh' cookies here automatically.
-    // We don't need to (and can't) save them manually in localStorage.
-
-    // 3. Update user state immediately
+    const response = await api.post('/auth/login/', { email, password });
     await checkAuth();
     return response.data;
   };
 
   const logout = async () => {
-    try {
-      await api.post('/auth/logout/'); // Backend deletes the cookies
-    } catch (error) {
-      console.error("Logout failed", error);
-    } finally {
-      setUser(null);
-      // Optional: Redirect to login handled by protected routes
-    }
+    try { await api.post('/auth/logout/'); } catch {}
+    finally { setUser(null); }
   };
 
   const register = async (userData) => {
@@ -54,17 +36,14 @@ export const AuthProvider = ({ children }) => {
     return response.data;
   };
 
+  // Role helpers
+  const isTeller = user?.role === 'teller';
+  const isAccountExecutive = user?.role === 'account_executive';
+  const isBranchManager = user?.role === 'branch_manager';
+  const isStaff = isTeller || isAccountExecutive || isBranchManager;
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        logout,
-        register,
-        checkAuth,
-      }}
-    >
+    <AuthContext.Provider value={{ user, loading, login, logout, register, checkAuth, isTeller, isAccountExecutive, isBranchManager, isStaff }}>
       {children}
     </AuthContext.Provider>
   );

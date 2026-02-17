@@ -11,6 +11,8 @@ import VirtualCards from './pages/VirtualCards';
 import MoneyOperations from './pages/MoneyOperations';
 import Activate from './pages/Activate';
 import EditProfile from './pages/EditProfile';
+import StaffDashboard from './pages/StaffDashboard';
+
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -104,6 +106,14 @@ function App() {
                 <AppLayout>
                   <ProfilePhotos />
                 </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/staff"
+            element={
+              <ProtectedRoute>
+                <StaffDashboard />
               </ProtectedRoute>
             }
           />

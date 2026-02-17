@@ -1,19 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Wallet, ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft } from 'lucide-react';
+import { ArrowLeft, ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Card, CardContent, CardHeader } from '../components/ui/Card';
+import { Card, CardContent } from '../components/ui/Card';
 import { OtpInput } from '../components/ui/OtpInput';
 import { PageTransition } from '../components/layout/PageTransition';
-
-const tabs = [
-  { id: 'deposit', label: 'Deposit', icon: ArrowDownToLine, color: 'emerald' },
-  { id: 'withdraw', label: 'Withdraw', icon: ArrowUpFromLine, color: 'danger' },
-  { id: 'transfer', label: 'Transfer', icon: ArrowRightLeft, color: 'electric' },
-];
 
 function getErrorMessage(err, defaultMsg) {
   if (err.response?.data) {
@@ -33,7 +28,15 @@ function getErrorMessage(err, defaultMsg) {
 
 export default function MoneyOperations() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('deposit');
+  const { isTeller } = useAuth();
+
+  const tabs = [
+    ...(isTeller ? [{ id: 'deposit', label: 'Deposit', icon: ArrowDownToLine }] : []),
+    { id: 'withdraw', label: 'Withdraw', icon: ArrowUpFromLine },
+    { id: 'transfer', label: 'Transfer', icon: ArrowRightLeft },
+  ];
+
+  const [activeTab, setActiveTab] = useState(isTeller ? 'deposit' : 'withdraw');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [accountNumber, setAccountNumber] = useState('');
@@ -128,11 +131,11 @@ export default function MoneyOperations() {
     setLoading(true); clearMessage();
     try {
       await api.post('/accounts/transfer/verify-otp/', { otp });
-      setMessage({ text: 'Transfer complete', type: 'success' });
+      setMessage({ text: 'Transfer complete!', type: 'success' });
       setTransferStep(1);
       setRecipientAccount(''); setTransferAmount(''); setTransferDesc(''); setSecurityAnswer(''); setOtp('');
     } catch (err) {
-      setMessage({ text: err.response?.status === 404 ? 'OTP endpoint not found.' : getErrorMessage(err, 'Invalid OTP.'), type: 'error' });
+      setMessage({ text: getErrorMessage(err, 'Invalid OTP.'), type: 'error' });
     } finally { setLoading(false); }
   };
 
@@ -182,7 +185,7 @@ export default function MoneyOperations() {
             )}
 
             <AnimatePresence mode="wait">
-              {activeTab === 'deposit' && (
+              {activeTab === 'deposit' && isTeller && (
                 <motion.form
                   key="deposit"
                   initial={{ opacity: 0, x: 10 }}
@@ -191,7 +194,7 @@ export default function MoneyOperations() {
                   onSubmit={handleDeposit}
                   className="space-y-5"
                 >
-                  <Input label="Your account number" value={accountNumber} readOnly />
+                  <Input label="Account number to deposit into" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} required />
                   <div>
                     <label className="block text-sm font-medium text-elite-text-muted mb-1.5">Amount ($)</label>
                     <input
@@ -219,7 +222,9 @@ export default function MoneyOperations() {
                   className="space-y-5"
                 >
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="w-8 h-1 rounded-full bg-gold" />
+                    {[1, 2].map((s) => (
+                      <span key={s} className={`h-1 flex-1 rounded-full ${withdrawStep >= s ? 'bg-gold' : 'bg-elite-border'}`} />
+                    ))}
                     <span className="text-sm text-elite-text-muted">Step {withdrawStep}/2</span>
                   </div>
                   {withdrawStep === 1 ? (
@@ -268,15 +273,13 @@ export default function MoneyOperations() {
                 >
                   <div className="flex items-center gap-2 mb-4">
                     {[1, 2, 3].map((s) => (
-                      <span
-                        key={s}
-                        className={`h-1 flex-1 rounded-full ${transferStep >= s ? 'bg-gold' : 'bg-elite-border'}`}
-                      />
+                      <span key={s} className={`h-1 flex-1 rounded-full ${transferStep >= s ? 'bg-gold' : 'bg-elite-border'}`} />
                     ))}
                     <span className="text-sm text-elite-text-muted">Step {transferStep}/3</span>
                   </div>
                   {transferStep === 1 && (
                     <form onSubmit={handleTransferInitiate} className="space-y-5">
+                      <Input label="From account" value={accountNumber} readOnly />
                       <Input label="Recipient account" value={recipientAccount} onChange={(e) => setRecipientAccount(e.target.value)} required />
                       <div>
                         <label className="block text-sm font-medium text-elite-text-muted mb-1.5">Amount ($)</label>
@@ -289,12 +292,13 @@ export default function MoneyOperations() {
                           className="w-full px-4 py-4 rounded-xl bg-elite-surface border border-elite-border text-2xl font-heading text-white focus:border-gold focus:ring-2 focus:ring-gold/20"
                         />
                       </div>
-                      <Input label="Description" value={transferDesc} onChange={(e) => setTransferDesc(e.target.value)} placeholder="e.g. Rent" />
+                      <Input label="Description (optional)" value={transferDesc} onChange={(e) => setTransferDesc(e.target.value)} placeholder="e.g. Rent" />
                       <Button type="submit" variant="electric" size="lg" className="w-full" loading={loading}>Next</Button>
                     </form>
                   )}
                   {transferStep === 2 && (
                     <form onSubmit={handleTransferSecurity} className="space-y-5">
+                      <p className="text-sm text-elite-text-muted">Answer your security question to proceed.</p>
                       <Input
                         label="Security answer"
                         type="password"
@@ -302,7 +306,10 @@ export default function MoneyOperations() {
                         onChange={(e) => setSecurityAnswer(e.target.value)}
                         required
                       />
-                      <Button type="submit" variant="electric" size="lg" className="w-full" loading={loading}>Next: Verify OTP</Button>
+                      <div className="flex gap-3">
+                        <Button type="button" variant="ghost" className="flex-1" onClick={() => setTransferStep(1)}>Back</Button>
+                        <Button type="submit" variant="electric" className="flex-1" loading={loading}>Next: Verify OTP</Button>
+                      </div>
                     </form>
                   )}
                   {transferStep === 3 && (
@@ -311,9 +318,12 @@ export default function MoneyOperations() {
                         <label className="block text-sm font-medium text-elite-text-muted mb-3 text-center">Enter OTP from email</label>
                         <OtpInput value={otp} onChange={setOtp} length={6} disabled={loading} />
                       </div>
-                      <Button type="submit" variant="success" size="lg" className="w-full" loading={loading} disabled={otp.length !== 6}>
-                        Complete transfer
-                      </Button>
+                      <div className="flex gap-3">
+                        <Button type="button" variant="ghost" className="flex-1" onClick={() => setTransferStep(2)}>Back</Button>
+                        <Button type="submit" variant="success" className="flex-1" loading={loading} disabled={otp.length !== 6}>
+                          Complete transfer
+                        </Button>
+                      </div>
                     </form>
                   )}
                 </motion.div>
