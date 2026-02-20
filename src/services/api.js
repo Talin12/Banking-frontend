@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = "https://bank-server-4xw9.onrender.com/api/v1";
+const API_URL = "https://banking-frontend-git-main-talin-dagas-projects.vercel.app/api/v1";
 
 const api = axios.create({
   baseURL: API_URL,
@@ -32,17 +32,23 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        // ✅ Refresh token is sent via cookie automatically (withCredentials: true)
+        // No body needed — CustomTokenRefreshView reads from cookie
         await api.post('/auth/refresh/');
         processQueue(null);
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError);
-        window.location.href = '/login';
+        // ✅ Fixed: Guard against redirect loop when already on the login page
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }
     }
+
     return Promise.reject(error);
   }
 );

@@ -21,7 +21,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (email, password) => {
+    // ✅ Fixed: removed checkAuth() call here.
+    // Cookies are only set AFTER OTP verification, not after login.
+    // Calling checkAuth() here caused a 401 → refresh → 400 → redirect loop.
     const response = await api.post('/auth/login/', { email, password });
+    return response.data;
+  };
+
+  const verifyOtp = async (otp) => {
+    // ✅ Call checkAuth() here instead, after OTP verification sets the cookies
+    const response = await api.post('/auth/verify-otp/', { otp });
     await checkAuth();
     return response.data;
   };
@@ -43,7 +52,19 @@ export const AuthProvider = ({ children }) => {
   const isStaff = isTeller || isAccountExecutive || isBranchManager;
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register, checkAuth, isTeller, isAccountExecutive, isBranchManager, isStaff }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      login,
+      verifyOtp,
+      logout,
+      register,
+      checkAuth,
+      isTeller,
+      isAccountExecutive,
+      isBranchManager,
+      isStaff
+    }}>
       {children}
     </AuthContext.Provider>
   );
