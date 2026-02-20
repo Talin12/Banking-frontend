@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = "https://banking-frontend-git-main-talin-dagas-projects.vercel.app/api/v1";
+const API_URL = "https://bank-server-4xw9.onrender.com/api/v1";
 
 const api = axios.create({
   baseURL: API_URL,
